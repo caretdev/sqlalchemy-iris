@@ -610,12 +610,10 @@ class IRISDialect(default.DefaultDialect):
 
     def do_execute(self, cursor, query, params, context=None):
         query, params = self._fix_for_params(query, params)
-        print('do_execute', query, params)
         cursor.execute(query, params)
 
     def do_executemany(self, cursor, query, params, context=None):
         query, params = self._fix_for_params(query, params, True)
-        print('do_execute_many', query, params)
         cursor.executemany(query, params)
 
     def get_schema(self, schema=None):
