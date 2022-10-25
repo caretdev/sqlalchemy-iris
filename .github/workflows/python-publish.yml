@@ -1,0 +1,83 @@
+# This workflow will upload a Python Package using Twine when a release is created
+# For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
+
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: Upload Python Package
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+      if: github.event_name == 'push'
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    - name: Install dependencies
+      id: set-version
+      run: |
+        VERSION=$(grep version setup.cfg | cut -d=  -f2 | tr -d '[:blank:]')
+        [ $GITHUB_EVENT_NAME == 'release' ] && VERSION=${{ github.event.release.tag_name }} && VERSION=${VERSION/v/}
+        [ $GITHUB_EVENT_NAME == 'push' ] && VERSION+=b && VERSION+=$(($(git tag -l "*$VERSION*" | cut -db -f2 | sort -n | tail -1)+1)) 
+        sed -ie "s/version = .*/version = $VERSION/" setup.cfg
+        python -m pip install --upgrade pip
+        pip install build
+        echo ::set-output name=version::$VERSION
+        NAME="sqlalchemy_iris"-${VERSION}-py3-none-any
+        echo ::set-output name=name::$NAME
+    - name: Build package
+      run: python -m build
+    - name: Publish package
+      uses: pypa/gh-action-pypi-publish@release/v1.5
+      with:
+        user: __token__
+        password: ${{ secrets.PYPI_API_TOKEN }}
+    - name: Create Beta Release
+      id: create_release
+      if: github.event_name == 'push'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.set-version.outputs.version }}
+        release_name: ${{ steps.set-version.outputs.version }}
+        prerelease: ${{ github.event_name != 'release' }}
+    - name: Upload Release Asset
+      id: upload-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event_name == 'release' && github.event.release.upload_url || steps.create_release.outputs.upload_url }}
+        asset_path: dist/${{ steps.set-version.outputs.name }}.whl
+        asset_name: ${{ steps.set-version.outputs.name }}.whl
+        asset_content_type: application/zip
+    - uses: actions/checkout@v2
+      if: github.event_name == 'release'
+      with:
+        ref: main
+    - name: Bump version
+      if: github.event_name == 'release'
+      run: |
+        git config --global user.name 'ProjectBot'
+        git config --global user.email 'bot@users.noreply.github.com'
+        VERSION=${{ github.event.release.tag_name }} && VERSION=${VERSION/v/}
+        VERSION=`echo $VERSION | awk -F. '/[0-9]+\./{$NF++;print}' OFS=.`
+        sed -ie "s/version = .*/version = $VERSION/" setup.cfg
+        git add setup.cfg
+        git commit -m 'auto bump version with release'
+        git push
