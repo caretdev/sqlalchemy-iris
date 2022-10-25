@@ -249,7 +249,7 @@ class Requirements(SuiteRequirements):
     def insert_from_select(self):
         """target platform supports INSERT from a SELECT."""
 
-        return exclusions.open()
+        return exclusions.closed()
 
     @property
     def tuple_in(self):
