@@ -18,7 +18,7 @@ setup(
     dependency_links=dependency_links,
     entry_points={
         "sqlalchemy.dialects": [
-            "iris = sqlalchemy_iris:IRISDialect",
+            "iris = sqlalchemy_iris.iris:IRISDialect_iris",
         ]
     },
 )

@@ -4,9 +4,7 @@ from .base import IRISDialect
 class IRISDialect_iris(IRISDialect):
     driver = "iris"
 
-    def create_connect_args(self, url):
-        opts = dict(url.query)
-        return ([], opts)
+    supports_statement_cache = True
 
 
 dialect = IRISDialect_iris

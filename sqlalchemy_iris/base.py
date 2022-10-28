@@ -9,7 +9,7 @@ from sqlalchemy.sql import compiler
 from sqlalchemy.sql import util as sql_util
 from sqlalchemy.sql import between
 from sqlalchemy.sql import func
-from sqlalchemy import sql
+from sqlalchemy import sql, text
 from sqlalchemy import util
 from sqlalchemy import types as sqltypes
 
@@ -393,6 +393,9 @@ class IRISCompiler(sql.compiler.SQLCompiler):
                 for elem in select._order_by_clause.clauses
             ]
 
+            if not _order_by_clauses:
+                _order_by_clauses = [text('%id')]
+
             limit_clause = self._get_limit_or_fetch(select)
             offset_clause = select._offset_clause
 
@@ -439,6 +442,44 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
 
     def visit_check_constraint(self, constraint, **kw):
         raise exc.CompileError("Check CONSTRAINT not supported")
+
+    def get_column_specification(self, column, **kwargs):
+
+        colspec = [
+            self.preparer.format_column(column),
+        ]
+
+        if (
+            column.primary_key
+            and column is column.table._autoincrement_column
+        ):
+            colspec.append("SERIAL")
+        else:
+            colspec.append(
+                self.dialect.type_compiler.process(
+                    column.type,
+                    type_expression=column,
+                    identifier_preparer=self.preparer,
+                )
+            )
+
+        if column.computed is not None:
+            colspec.append(self.process(column.computed))
+            default = self.get_column_default_string(column)
+            if default is not None:
+                colspec.append("DEFAULT " + default)
+
+        if not column.nullable:
+            colspec.append("NOT NULL")
+
+        comment = column.comment
+        if comment is not None:
+            literal = self.sql_compiler.render_literal_value(
+                comment, sqltypes.String()
+            )
+            colspec.append("%%DESCRIPTION " + literal)
+
+        return " ".join(colspec)
 
 
 class IRISTypeCompiler(compiler.GenericTypeCompiler):
@@ -536,11 +577,13 @@ colspecs = {
 
 
 class IRISDialect(default.DefaultDialect):
-    driver = 'iris'
+
+    name = 'iris'
 
     default_schema_name = "SQLUser"
 
     default_paramstyle = "format"
+    supports_statement_cache = True
 
     supports_native_decimal = True
     supports_sane_rowcount = True
@@ -551,7 +594,6 @@ class IRISDialect(default.DefaultDialect):
 
     supports_sequences = False
 
-    supports_statement_cache = False
     postfetch_lastrowid = False
     non_native_boolean_check_constraint = False
     supports_simple_order_by_label = False
@@ -610,6 +652,7 @@ class IRISDialect(default.DefaultDialect):
 
     def do_execute(self, cursor, query, params, context=None):
         query, params = self._fix_for_params(query, params)
+        # print('do_execute', query, params)
         cursor.execute(query, params)
 
     def do_executemany(self, cursor, query, params, context=None):
@@ -903,7 +946,7 @@ class IRISDialect(default.DefaultDialect):
             ):
                 if charlen == -1:
                     charlen = None
-                kwargs["length"] = charlen
+                kwargs["length"] = int(charlen)
                 if collation:
                     kwargs["collation"] = collation
             if coltype is None:
@@ -914,10 +957,10 @@ class IRISDialect(default.DefaultDialect):
                 coltype = sqltypes.NULLTYPE
             else:
                 if issubclass(coltype, sqltypes.Numeric):
-                    kwargs["precision"] = numericprec
+                    kwargs["precision"] = int(numericprec)
 
                     if not issubclass(coltype, sqltypes.Float):
-                        kwargs["scale"] = numericscale
+                        kwargs["scale"] = int(numericscale)
 
                 coltype = coltype(**kwargs)
 

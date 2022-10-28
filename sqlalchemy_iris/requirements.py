@@ -211,7 +211,7 @@ class Requirements(SuiteRequirements):
         """target platform generates new surrogate integer primary key values
         when insert() is executed, excluding the pk column."""
 
-        return exclusions.closed()
+        return exclusions.open()
 
     @property
     def fetch_rows_post_commit(self):
@@ -367,8 +367,7 @@ class Requirements(SuiteRequirements):
     @property
     def table_reflection(self):
         """target database has general support for table reflection"""
-        # return exclusions.open()
-        return exclusions.closed()
+        return exclusions.open()
 
     @property
     def reflect_tables_no_columns(self):
@@ -1124,5 +1123,5 @@ class Requirements(SuiteRequirements):
         """If autoincrement=True on a column does not require an explicit
         sequence. This should be false only for oracle.
         """
-        # return exclusions.open()
-        return exclusions.closed()
+        return exclusions.open()
+        # return exclusions.closed()
