@@ -477,11 +477,9 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
                 )
             )
 
-        if column.computed is not None:
-            colspec.append(self.process(column.computed))
-            default = self.get_column_default_string(column)
-            if default is not None:
-                colspec.append("DEFAULT " + default)
+        default = self.get_column_default_string(column)
+        if default is not None:
+            colspec.append("DEFAULT " + default)
 
         if not column.nullable:
             colspec.append("NOT NULL")
@@ -569,6 +567,8 @@ class _IRISDate(sqltypes.Date):
         def process(value):
             if value is None:
                 return None
+            if isinstance(value, str) and '-' in value:
+                return datetime.datetime.strptime(value, '%Y-%m-%d').date()
             horolog = int(value) + HOROLOG_ORDINAL
             return datetime.date.fromordinal(horolog)
 
