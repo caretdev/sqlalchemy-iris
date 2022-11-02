@@ -1,7 +1,8 @@
 from sqlalchemy.testing.suite import QuotedNameArgumentTest as _QuotedNameArgumentTest
 from sqlalchemy.testing.suite import FetchLimitOffsetTest as _FetchLimitOffsetTest
 from sqlalchemy.testing.suite import CompoundSelectTest as _CompoundSelectTest
-from sqlalchemy.testing import fixtures, AssertsExecutionResults, AssertsCompiledSQL
+from sqlalchemy.testing import fixtures
+# from sqlalchemy.testing import AssertsExecutionResults, AssertsCompiledSQL
 from sqlalchemy import testing
 from sqlalchemy import Table, Column, Integer, String, select
 import pytest
@@ -56,25 +57,74 @@ class FetchLimitOffsetTest(_FetchLimitOffsetTest):
             )
 
 
-class MiscTest(AssertsExecutionResults, AssertsCompiledSQL, fixtures.TablesTest):
+# class MiscTest(AssertsExecutionResults, AssertsCompiledSQL, fixtures.TablesTest):
 
+#     __backend__ = True
+
+#     __only_on__ = "iris"
+
+#     @classmethod
+#     def define_tables(cls, metadata):
+#         Table(
+#             "some_table",
+#             metadata,
+#             Column("id", Integer, primary_key=True),
+#             Column("x", Integer),
+#             Column("y", Integer),
+#             Column("z", String(50)),
+#         )
+
+#     # def test_compile(self):
+#     #     table = self.tables.some_table
+
+#     #     stmt = select(table.c.id, table.c.x).offset(20).limit(10)
+
+
+class TransactionTest(fixtures.TablesTest):
     __backend__ = True
-
-    __only_on__ = "iris"
 
     @classmethod
     def define_tables(cls, metadata):
         Table(
-            "some_table",
+            "users",
             metadata,
-            Column("id", Integer, primary_key=True),
-            Column("x", Integer),
-            Column("y", Integer),
-            Column("z", String(50)),
+            Column("user_id", Integer, primary_key=True),
+            Column("user_name", String(20)),
+            test_needs_acid=True,
         )
 
-    # def test_compile(self):
-    #     table = self.tables.some_table
+    @testing.fixture
+    def local_connection(self):
+        with testing.db.connect() as conn:
+            yield conn
 
-    #     stmt = select(table.c.id, table.c.x).offset(20).limit(10)
+    def test_commits(self, local_connection):
+        users = self.tables.users
+        connection = local_connection
+        transaction = connection.begin()
+        connection.execute(users.insert(), dict(user_id=1, user_name="user1"))
+        transaction.commit()
 
+        transaction = connection.begin()
+        connection.execute(users.insert(), dict(user_id=2, user_name="user2"))
+        connection.execute(users.insert(), dict(user_id=3, user_name="user3"))
+        transaction.commit()
+
+        transaction = connection.begin()
+        result = connection.exec_driver_sql("select * from users")
+        assert len(result.fetchall()) == 3
+        transaction.commit()
+        connection.close()
+
+    def test_rollback(self, local_connection):
+        """test a basic rollback"""
+
+        users = self.tables.users
+        connection = local_connection
+        transaction = connection.begin()
+        connection.execute(users.insert(), dict(user_id=1, user_name="user1"))
+        connection.execute(users.insert(), dict(user_id=2, user_name="user2"))
+        connection.execute(users.insert(), dict(user_id=3, user_name="user3"))
+        transaction.rollback()
+        result = connection.exec_driver_sql("select * from users")
+        assert len(result.fetchall()) == 0

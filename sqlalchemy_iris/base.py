@@ -1,5 +1,10 @@
 import datetime
 from telnetlib import BINARY
+from iris.dbapi._DBAPI import Cursor
+from iris.dbapi._ResultSetRow import _ResultSetRow
+from iris.dbapi._DBAPI import SQLType as IRISSQLType
+import iris._IRISNative as irisnative
+import iris.dbapi._DBAPI as dbapi
 from . import information_schema as ischema
 from sqlalchemy import exc
 from sqlalchemy.orm import aliased
@@ -9,6 +14,7 @@ from sqlalchemy.sql import compiler
 from sqlalchemy.sql import util as sql_util
 from sqlalchemy.sql import between
 from sqlalchemy.sql import func
+from sqlalchemy.sql import expression
 from sqlalchemy import sql, text
 from sqlalchemy import util
 from sqlalchemy import types as sqltypes
@@ -501,8 +507,41 @@ class IRISIdentifierPreparer(sql.compiler.IdentifierPreparer):
             dialect, omit_schema=False)
 
 
+class CursorWrapper(Cursor):
+    def __init__(self, connection):
+        super(CursorWrapper, self).__init__(connection)
+
+    def fetchone(self):
+        retval = super(CursorWrapper, self).fetchone()
+        if retval is None:
+            return None
+        if not isinstance(retval, _ResultSetRow.DataRow):
+            return retval
+
+        # Workaround for fetchone, which returns values in row not from 0
+        row = []
+        for c in self._columns:
+            value = retval[c.name]
+            # Workaround for issue, when int returned as string
+            if value is not None and c.type in (IRISSQLType.INTEGER, IRISSQLType.BIGINT,) and type(value) is not int:
+                value = int(value)
+            row.append(value)
+        return row
+
+
 class IRISExecutionContext(default.DefaultExecutionContext):
-    pass
+
+    def get_lastrowid(self):
+        cursor = self.create_cursor()
+        cursor.execute("SELECT LAST_IDENTITY()")
+        lastrowid = cursor.fetchone()[0]
+        cursor.close()
+        return lastrowid
+
+    def create_cursor(self):
+        # cursor = self._dbapi_connection.cursor()
+        cursor = CursorWrapper(self._dbapi_connection)
+        return cursor
 
 
 HOROLOG_ORDINAL = datetime.date(1840, 12, 31).toordinal()
@@ -594,7 +633,7 @@ class IRISDialect(default.DefaultDialect):
 
     supports_sequences = False
 
-    postfetch_lastrowid = False
+    postfetch_lastrowid = True
     non_native_boolean_check_constraint = False
     supports_simple_order_by_label = False
     supports_empty_insert = False
@@ -612,11 +651,58 @@ class IRISDialect(default.DefaultDialect):
 
     def __init__(self, **kwargs):
         default.DefaultDialect.__init__(self, **kwargs)
+        self._auto_parallel = 1
+
+    _isolation_lookup = set(
+        [
+            "READ UNCOMMITTED",
+            "READ COMMITTED",
+            "READ VERIFIED",
+        ]
+    )
+
+    def _get_option(self, connection, option):
+        cursor = CursorWrapper(connection)
+        # cursor = connection.cursor()
+        cursor.execute('SELECT %SYSTEM_SQL.Util_GetOption(?)', [option, ])
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+        return None
+
+    def _set_option(self, connection, option, value):
+        cursor = CursorWrapper(connection)
+        # cursor = connection.cursor()
+        cursor.execute('SELECT %SYSTEM_SQL.Util_SetOption(?, ?)', [option, value, ])
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+        return None
+
+    def get_isolation_level(self, connection):
+        level = int(self._get_option(connection, 'IsolationMode'))
+        if level == 0:
+            return 'READ UNCOMMITTED'
+        elif level == 1:
+            return 'READ COMMITTED'
+        elif level == 3:
+            return 'READ VERIFIED'
+        return None
+
+    def set_isolation_level(self, connection, level_str):
+        if level_str == "AUTOCOMMIT":
+            connection.setAutoCommit(True)
+        else:
+            connection.setAutoCommit(False)
+            level = 0
+            if level_str == 'READ COMMITTED':
+                level = 1
+            elif level_str == 'READ VERIFIED':
+                level = 3
+            self._set_option(connection, 'IsolationMode', level)
 
     @classmethod
     def dbapi(cls):
-        import iris._IRISNative as irisnative
-        import iris.dbapi._DBAPI as dbapi
         dbapi.connect = irisnative.connect
         dbapi.paramstyle = "format"
         return dbapi
@@ -628,6 +714,8 @@ class IRISDialect(default.DefaultDialect):
         opts["namespace"] = url.database if url.database else 'USER'
         opts["username"] = url.username if url.username else ''
         opts["password"] = url.password if url.password else ''
+
+        opts['autoCommit'] = False
 
         return ([], opts)
 
@@ -658,6 +746,21 @@ class IRISDialect(default.DefaultDialect):
     def do_executemany(self, cursor, query, params, context=None):
         query, params = self._fix_for_params(query, params, True)
         cursor.executemany(query, params)
+
+    def do_begin(self, connection):
+        pass
+
+    def do_rollback(self, connection):
+        connection.rollback()
+
+    def do_commit(self, connection):
+        connection.commit()
+
+    def do_savepoint(self, connection, name):
+        connection.execute(expression.SavepointClause(name))
+
+    def do_release_savepoint(self, connection, name):
+        pass
 
     def get_schema(self, schema=None):
         if schema is None:

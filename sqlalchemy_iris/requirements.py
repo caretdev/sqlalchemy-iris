@@ -298,7 +298,7 @@ class Requirements(SuiteRequirements):
         method without reliance on RETURNING.
 
         """
-        # return exclusions.open()
+        return exclusions.open()
         return exclusions.closed()
 
     @property
@@ -658,7 +658,7 @@ class Requirements(SuiteRequirements):
     @property
     def autocommit(self):
         """target dialect supports 'AUTOCOMMIT' as an isolation_level"""
-        return exclusions.closed()
+        return exclusions.open()
 
     @property
     def isolation_level(self):
@@ -668,33 +668,18 @@ class Requirements(SuiteRequirements):
         the get_isolation_levels() method be implemented.
 
         """
-        return exclusions.closed()
+        return exclusions.open()
 
     def get_isolation_levels(self, config):
-        """Return a structure of supported isolation levels for the current
-        testing dialect.
-
-        The structure indicates to the testing suite what the expected
-        "default" isolation should be, as well as the other values that
-        are accepted.  The dictionary has two keys, "default" and "supported".
-        The "supported" key refers to a list of all supported levels and
-        it should include AUTOCOMMIT if the dialect supports it.
-
-        If the :meth:`.DefaultRequirements.isolation_level` requirement is
-        not open, then this method has no return value.
-
-        E.g.::
-
-            >>> testing.requirements.get_isolation_levels()
-            {
-                "default": "READ_COMMITTED",
-                "supported": [
-                    "SERIALIZABLE", "READ UNCOMMITTED",
-                    "READ COMMITTED", "REPEATABLE READ",
-                    "AUTOCOMMIT"
-                ]
-            }
-        """
+        return {
+            "default": "READ UNCOMMITTED",
+            "supported": [
+                "AUTOCOMMIT",
+                "READ UNCOMMITTED",
+                "READ COMMITTED",
+                "READ VERIFIED",
+            ]
+        }
 
     @property
     def json_type(self):
@@ -878,7 +863,7 @@ class Requirements(SuiteRequirements):
     def savepoints(self):
         """Target database must support savepoints."""
 
-        return exclusions.closed()
+        return exclusions.open()
 
     @property
     def two_phase_transactions(self):
@@ -1125,3 +1110,17 @@ class Requirements(SuiteRequirements):
         """
         return exclusions.open()
         # return exclusions.closed()
+
+    #
+    # SQLAlchemy Tests
+    # pytest --dburi iris://_SYSTEM:SYS@localhost:1972/USER \ 
+    #   --requirements sqlalchemy_iris.requirements:Requirements
+    #
+
+    @property
+    def memory_process_intensive(self):
+        return exclusions.closed()
+
+    @property
+    def array_type(self):
+        return exclusions.closed()
