@@ -638,6 +638,7 @@ class IRISDialect(default.DefaultDialect):
     supports_alter = True
     supports_schemas = True
     supports_views = True
+    supports_default_values = True
 
     supports_sequences = False
 
