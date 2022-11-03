@@ -1110,17 +1110,3 @@ class Requirements(SuiteRequirements):
         """
         return exclusions.open()
         # return exclusions.closed()
-
-    #
-    # SQLAlchemy Tests
-    # pytest --dburi iris://_SYSTEM:SYS@localhost:1972/USER \ 
-    #   --requirements sqlalchemy_iris.requirements:Requirements
-    #
-
-    @property
-    def memory_process_intensive(self):
-        return exclusions.closed()
-
-    @property
-    def array_type(self):
-        return exclusions.closed()
