@@ -1,6 +1,7 @@
 import datetime
 from telnetlib import BINARY
 from iris.dbapi._DBAPI import Cursor
+from iris.dbapi._Column import _Column
 from iris.dbapi._ResultSetRow import _ResultSetRow
 from iris.dbapi._DBAPI import SQLType as IRISSQLType
 import iris._IRISNative as irisnative
@@ -516,6 +517,27 @@ class IRISIdentifierPreparer(sql.compiler.IdentifierPreparer):
 class CursorWrapper(Cursor):
     def __init__(self, connection):
         super(CursorWrapper, self).__init__(connection)
+    
+    _types = {
+        IRISSQLType.INTEGER: int,
+        IRISSQLType.BIGINT: int,
+
+        IRISSQLType.VARCHAR: str,
+    }
+
+    # Workaround for issue, when type of variable not the same as column type
+    def _fix_type(self, value, sql_type: IRISSQLType):
+        if value is None:
+            return value
+
+        try:
+            expected_type = self._types.get(sql_type)
+            if expected_type and not isinstance(value, expected_type):
+                value = expected_type(value)
+        except Exception:
+            pass
+
+        return value
 
     def fetchone(self):
         retval = super(CursorWrapper, self).fetchone()
@@ -523,14 +545,14 @@ class CursorWrapper(Cursor):
             return None
         if not isinstance(retval, _ResultSetRow.DataRow):
             return retval
+        # return retval[:]
 
         # Workaround for fetchone, which returns values in row not from 0
         row = []
+        self._columns: list[_Column]
         for c in self._columns:
-            value = retval[c.name]
-            # Workaround for issue, when int returned as string
-            if value is not None and c.type in (IRISSQLType.INTEGER, IRISSQLType.BIGINT,) and type(value) is not int:
-                value = int(value)
+            value = retval[c.name]            
+            value = self._fix_type(value, c.type)
             row.append(value)
         return row
 
@@ -846,14 +868,22 @@ class IRISDialect(default.DefaultDialect):
 
         indexes = util.defaultdict(dict)
         for row in rs:
-            indexrec = indexes[row["INDEX_NAME"]]
+            (
+                idxname,
+                colname,
+                _,
+                nuniq,
+                _,
+            ) = row
+
+            indexrec = indexes[idxname]
             if "name" not in indexrec:
-                indexrec["name"] = self.normalize_name(row["INDEX_NAME"])
+                indexrec["name"] = self.normalize_name(idxname)
                 indexrec["column_names"] = []
-                indexrec["unique"] = not row["NON_UNIQUE"]
+                indexrec["unique"] = not nuniq
 
             indexrec["column_names"].append(
-                self.normalize_name(row["COLUMN_NAME"])
+                self.normalize_name(colname)
             )
 
         indexes = list(indexes.values())
@@ -890,8 +920,12 @@ class IRISDialect(default.DefaultDialect):
         constraint_name = None
         pkfields = []
         for row in rs:
-            constraint_name = self.normalize_name(row["CONSTRAINT_NAME"])
-            pkfields.append(self.normalize_name(row["COLUMN_NAME"]))
+            (
+                name,
+                colname,
+            ) = row
+            constraint_name = self.normalize_name(name)
+            pkfields.append(self.normalize_name(colname))
 
         if pkfields:
             return {
@@ -1038,7 +1072,7 @@ class IRISDialect(default.DefaultDialect):
         for row in c.mappings():
             name = row[columns.c.column_name]
             type_ = row[columns.c.data_type].upper()
-            nullable = row[columns.c.is_nullable] == "YES"
+            nullable = row[columns.c.is_nullable]
             charlen = row[columns.c.character_maximum_length]
             numericprec = row[columns.c.numeric_precision]
             numericscale = row[columns.c.numeric_scale]
