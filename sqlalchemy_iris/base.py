@@ -468,7 +468,9 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
             column.primary_key
             and column is column.table._autoincrement_column
         ):
-            colspec.append("SERIAL")
+            # colspec.append("SERIAL")
+            # IDENTITY and ALLOWIDENTITYINSERT = 1 in table instead of SERIAL to solve issue with LAST_IDENTITY()
+            colspec.append("IDENTITY")
         else:
             colspec.append(
                 self.dialect.type_compiler.process(
@@ -493,6 +495,9 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
             colspec.append("%%DESCRIPTION " + literal)
 
         return " ".join(colspec)
+
+    def post_create_table(self, table):
+        return " WITH %%CLASSPARAMETER ALLOWIDENTITYINSERT = 1"
 
 
 class IRISTypeCompiler(compiler.GenericTypeCompiler):
