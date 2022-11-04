@@ -65,7 +65,7 @@ class Requirements(SuiteRequirements):
     def non_updating_cascade(self):
         """target database must *not* support ON UPDATE..CASCADE behavior in
         foreign keys."""
-        return exclusions.open()
+        return exclusions.closed()
 
     @property
     def deferrable_fks(self):
@@ -1110,3 +1110,9 @@ class Requirements(SuiteRequirements):
         """
         return exclusions.open()
         # return exclusions.closed()
+
+    @property
+    def updateable_autoincrement_pks(self):
+        """Target must support UPDATE on autoincrement/integer primary key."""
+
+        return exclusions.closed()
