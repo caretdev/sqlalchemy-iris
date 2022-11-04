@@ -551,8 +551,10 @@ class CursorWrapper(Cursor):
         row = []
         self._columns: list[_Column]
         for c in self._columns:
-            value = retval[c.name]            
-            value = self._fix_type(value, c.type)
+            value = retval[c.name]
+            if c.tableName != 'None' and c.schema != 'None':
+                # print('_fix_type', [c.name, value, c.type, type(value), c.isAliased, c.isExpression, c.isKeyColumn, c.isIdentity, c.tableName is None, c.schema])
+                value = self._fix_type(value, c.type)
             row.append(value)
         return row
 
