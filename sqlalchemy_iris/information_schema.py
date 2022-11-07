@@ -4,6 +4,7 @@ from sqlalchemy import MetaData
 from sqlalchemy import Table
 from sqlalchemy.types import Integer
 from sqlalchemy.types import String
+from sqlalchemy.types import Boolean
 
 
 ischema = MetaData()
@@ -75,14 +76,14 @@ indexes = Table(
     Column("TABLE_CATALOG", String, key="table_catalog"),
     Column("TABLE_SCHEMA", String, key="table_schema"),
     Column("TABLE_NAME", String, key="table_name"),
-    Column("NON_UNIQUE", YESNO, key="non_unique"),
+    Column("NON_UNIQUE", Boolean, key="non_unique"),
     Column("INDEX_CATALOG", String, key="index_catalog"),
     Column("INDEX_SCHEMA", String, key="index_schema"),
     Column("INDEX_NAME", String, key="index_name"),
     Column("ORDINAL_POSITION", Integer, key="ordinal_position"),
     Column("COLUMN_NAME", String, key="column_name"),
     Column("ASC_OR_DESC", String, key="asc_or_desc"),
-    Column("PRIMARY_KEY", YESNO, key="primary_key"),
+    Column("PRIMARY_KEY", Boolean, key="primary_key"),
     schema="INFORMATION_SCHEMA",
 )
 
