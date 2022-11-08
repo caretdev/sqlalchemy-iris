@@ -1,11 +1,6 @@
 import datetime
 from telnetlib import BINARY
-from iris.dbapi._DBAPI import Cursor
-from iris.dbapi._Column import _Column
-from iris.dbapi._ResultSetRow import _ResultSetRow
-from iris.dbapi._DBAPI import SQLType as IRISSQLType
-import iris._IRISNative as irisnative
-import iris.dbapi._DBAPI as dbapi
+import intersystems_iris.dbapi._DBAPI as dbapi
 from . import information_schema as ischema
 from sqlalchemy import exc
 from sqlalchemy.orm import aliased
@@ -519,63 +514,19 @@ class IRISIdentifierPreparer(sql.compiler.IdentifierPreparer):
             dialect, omit_schema=False)
 
 
-class CursorWrapper(Cursor):
-    def __init__(self, connection):
-        super(CursorWrapper, self).__init__(connection)
-    
-    _types = {
-        IRISSQLType.INTEGER: int,
-        IRISSQLType.BIGINT: int,
-
-        IRISSQLType.VARCHAR: str,
-    }
-
-    # Workaround for issue, when type of variable not the same as column type
-    def _fix_type(self, value, sql_type: IRISSQLType):
-        if value is None:
-            return value
-
-        try:
-            expected_type = self._types.get(sql_type)
-            if expected_type and not isinstance(value, expected_type):
-                value = expected_type(value)
-        except Exception:
-            pass
-
-        return value
-
-    def fetchone(self):
-        retval = super(CursorWrapper, self).fetchone()
-        if retval is None:
-            return None
-        if not isinstance(retval, _ResultSetRow.DataRow):
-            return retval
-        # return retval[:]
-
-        # Workaround for fetchone, which returns values in row not from 0
-        row = []
-        self._columns: list[_Column]
-        for c in self._columns:
-            value = retval[c.name]
-            if c.tableName != 'None' and c.schema != 'None':
-                # print('_fix_type', [c.name, value, c.type, type(value), c.isAliased, c.isExpression, c.isKeyColumn, c.isIdentity, c.tableName is None, c.schema])
-                value = self._fix_type(value, c.type)
-            row.append(value)
-        return row
-
-
 class IRISExecutionContext(default.DefaultExecutionContext):
 
     def get_lastrowid(self):
-        cursor = self.create_cursor()
-        cursor.execute("SELECT LAST_IDENTITY()")
-        lastrowid = cursor.fetchone()[0]
-        cursor.close()
-        return lastrowid
+        try:
+            return self.cursor.lastrowid
+        except Exception:
+            cursor = self.cursor
+            cursor.execute("SELECT LAST_IDENTITY()")
+            lastrowid = cursor.fetchone()[0]
+            return lastrowid
 
     def create_cursor(self):
-        # cursor = self._dbapi_connection.cursor()
-        cursor = CursorWrapper(self._dbapi_connection)
+        cursor = self._dbapi_connection.cursor()
         return cursor
 
 
@@ -700,7 +651,7 @@ class IRISDialect(default.DefaultDialect):
     )
 
     def _get_option(self, connection, option):
-        cursor = CursorWrapper(connection)
+        cursor = connection.cursor()
         # cursor = connection.cursor()
         cursor.execute('SELECT %SYSTEM_SQL.Util_GetOption(?)', [option, ])
         row = cursor.fetchone()
@@ -709,7 +660,7 @@ class IRISDialect(default.DefaultDialect):
         return None
 
     def _set_option(self, connection, option, value):
-        cursor = CursorWrapper(connection)
+        cursor = connection.cursor()
         # cursor = connection.cursor()
         cursor.execute('SELECT %SYSTEM_SQL.Util_SetOption(?, ?)', [option, value, ])
         row = cursor.fetchone()

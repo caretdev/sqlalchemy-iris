@@ -311,7 +311,7 @@ class Requirements(SuiteRequirements):
         inserted id, would return closed/fail/skip for this.
 
         """
-        return exclusions.closed()
+        return exclusions.open()
 
     @property
     def emulated_lastrowid_even_with_sequences(self):
@@ -328,7 +328,7 @@ class Requirements(SuiteRequirements):
         cursor object.
 
         """
-        return exclusions.closed()
+        return exclusions.open()
 
     @property
     def views(self):
