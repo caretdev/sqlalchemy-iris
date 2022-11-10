@@ -652,8 +652,7 @@ class Requirements(SuiteRequirements):
 
         """
 
-        # return exclusions.open()
-        return exclusions.closed()
+        return exclusions.open()
 
     @property
     def autocommit(self):
@@ -833,8 +832,7 @@ class Requirements(SuiteRequirements):
         """Target database must support an unbounded Text() "
         "type such as TEXT or CLOB"""
 
-        # return exclusions.open()
-        return exclusions.closed()
+        return exclusions.open()
 
     @property
     def empty_strings_varchar(self):
@@ -842,7 +840,7 @@ class Requirements(SuiteRequirements):
         varchar.
 
         """
-        # return exclusions.open()
+        return exclusions.open()
         return exclusions.closed()
 
     @property
