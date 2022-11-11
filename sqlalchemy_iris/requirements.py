@@ -24,3 +24,18 @@ class Requirements(SuiteRequirements):
     @property
     def reflects_pk_names(self):
         return exclusions.open()
+
+    @property
+    def date_historic(self):
+        """target dialect supports representation of Python
+        datetime.datetime() objects with historic (pre 1970) values."""
+
+        return exclusions.open()
+
+    @property
+    def datetime_historic(self):
+        """target dialect supports representation of Python
+        datetime.datetime() objects with historic (pre 1970) values."""
+
+        return exclusions.open()
+
