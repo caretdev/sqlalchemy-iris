@@ -1,5 +1,5 @@
 import datetime
-from telnetlib import BINARY
+from decimal import Decimal
 import intersystems_iris.dbapi._DBAPI as dbapi
 from . import information_schema as ischema
 from sqlalchemy import exc
@@ -24,6 +24,7 @@ from sqlalchemy.types import TIMESTAMP
 from sqlalchemy.types import TIME
 from sqlalchemy.types import NUMERIC
 from sqlalchemy.types import FLOAT
+from sqlalchemy.types import BINARY
 from sqlalchemy.types import VARBINARY
 from sqlalchemy.types import TEXT
 from sqlalchemy.types import SMALLINT
@@ -440,6 +441,14 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         else:
             return ""
 
+    def visit_column(self, column, within_columns_clause=False, **kwargs):
+        text = super().visit_column(column, within_columns_clause=within_columns_clause, **kwargs)
+        if within_columns_clause:
+            return text
+        if isinstance(column.type, sqltypes.Text):
+            text = 'CONVERT(VARCHAR, %s)' % (text, )
+        return text
+
 
 class IRISDDLCompiler(sql.compiler.DDLCompiler):
     """IRIS syntactic idiosyncrasies"""
@@ -487,12 +496,12 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
             literal = self.sql_compiler.render_literal_value(
                 comment, sqltypes.String()
             )
-            colspec.append("%%DESCRIPTION " + literal)
+            colspec.append("%DESCRIPTION " + literal)
 
         return " ".join(colspec)
 
     def post_create_table(self, table):
-        return " WITH %%CLASSPARAMETER ALLOWIDENTITYINSERT = 1"
+        return " WITH %CLASSPARAMETER ALLOWIDENTITYINSERT = 1"
 
 
 class IRISTypeCompiler(compiler.GenericTypeCompiler):
@@ -555,19 +564,47 @@ class _IRISDate(sqltypes.Date):
         return process
 
 
-class _IRISDateTime(sqltypes.DateTime):
+class _IRISTimeStamp(sqltypes.DateTime):
     def bind_processor(self, dialect):
-        def process(value):
+        def process(value: datetime.datetime):
             if value is not None:
-                return value.strftime('%Y-%m-%d %H:%M:%S')
+                # value = int(value.timestamp() * 1000000)
+                # value += (2 ** 60) if value > 0 else -(2 ** 61 * 3)
+                return value.strftime('%Y-%m-%d %H:%M:%S.%f')
             return value
 
         return process
 
     def result_processor(self, dialect, coltype):
         def process(value):
+            if isinstance(value, str):
+                if '.' not in value:
+                    value += '.0'
+                return datetime.datetime.strptime(value, '%Y-%m-%d %H:%M:%S.%f')
+            if isinstance(value, int):
+                value -= (2 ** 60) if value > 0 else -(2 ** 61 * 3)
+                value = value / 1000000
+                value = datetime.datetime.utcfromtimestamp(value)
+            return value
+
+        return process
+
+
+class _IRISDateTime(sqltypes.DateTime):
+    def bind_processor(self, dialect):
+        def process(value):
             if value is not None:
-                return datetime.datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+                return value.strftime('%Y-%m-%d %H:%M:%S.%f')
+            return value
+
+        return process
+
+    def result_processor(self, dialect, coltype):
+        def process(value):
+            if isinstance(value, str):
+                if '.' not in value:
+                    value += '.0'
+                return datetime.datetime.strptime(value, '%Y-%m-%d %H:%M:%S.%f')
             return value
 
         return process
@@ -577,20 +614,25 @@ class _IRISTime(sqltypes.DateTime):
     def bind_processor(self, dialect):
         def process(value):
             if value is not None:
-                return value.strftime('%H:%M:%S')
+                return value.strftime('%H:%M:%S.%f')
             return value
 
         return process
 
     def result_processor(self, dialect, coltype):
         def process(value):
-            if value is not None:
+            if isinstance(value, str):
+                if '.' not in value:
+                    value += '.0'
+                return datetime.datetime.strptime(value, '%H:%M:%S.%f').time()
+            if isinstance(value, int) or isinstance(value, Decimal):
                 horolog = value
-                hour = horolog // 3600
-                horolog -= hour * 3600
-                minute = horolog // 60
-                second = horolog % 60
-                return datetime.time(hour, minute, second)
+                hour = int(horolog // 3600)
+                horolog -= int(hour * 3600)
+                minute = int(horolog // 60)
+                second = int(horolog % 60)
+                micro = int(value % 1 * 1000000)
+                return datetime.time(hour, minute, second, micro)
             return value
 
         return process
@@ -599,6 +641,7 @@ class _IRISTime(sqltypes.DateTime):
 colspecs = {
     sqltypes.Date: _IRISDate,
     sqltypes.DateTime: _IRISDateTime,
+    sqltypes.TIMESTAMP: _IRISTimeStamp,
     sqltypes.Time: _IRISTime,
 }
 
@@ -653,7 +696,7 @@ class IRISDialect(default.DefaultDialect):
     def _get_option(self, connection, option):
         cursor = connection.cursor()
         # cursor = connection.cursor()
-        cursor.execute('SELECT %SYSTEM_SQL.Util_GetOption(?)', [option, ])
+        cursor.execute('SELECT %SYSTEM_SQL.Util_GetOption(?)', option)
         row = cursor.fetchone()
         if row:
             return row[0]
@@ -662,7 +705,7 @@ class IRISDialect(default.DefaultDialect):
     def _set_option(self, connection, option, value):
         cursor = connection.cursor()
         # cursor = connection.cursor()
-        cursor.execute('SELECT %SYSTEM_SQL.Util_SetOption(?, ?)', [option, value, ])
+        cursor.execute('SELECT %SYSTEM_SQL.Util_SetOption(?, ?)', option, value)
         row = cursor.fetchone()
         if row:
             return row[0]
@@ -692,8 +735,7 @@ class IRISDialect(default.DefaultDialect):
 
     @classmethod
     def dbapi(cls):
-        dbapi.connect = irisnative.connect
-        dbapi.paramstyle = "format"
+        # dbapi.paramstyle = "format"
         return dbapi
 
     def create_connect_args(self, url):
@@ -708,36 +750,15 @@ class IRISDialect(default.DefaultDialect):
 
         return ([], opts)
 
-    def _fix_for_params(self, query, params, many=False):
-        if query.endswith(';'):
-            query = query[:-1]
-        if params is None:
-            params = []
-        elif hasattr(params, 'keys'):
-            # Handle params as dict
-            args = {k: "?" % k for k in params}
-            query = query % args
-        else:
-            # Handle params as sequence
-            args = ['?' for i in range(len(params if not many else params[0]))]
-            query = query % tuple(args)
-        newparams = list()
-        for p in params:
-            newparams.append(p if not many else list(p)
-                             if len(p) > 1 else p[0])
-        return query, newparams
-
     def do_execute(self, cursor, query, params, context=None):
-        query, params = self._fix_for_params(query, params)
-        # print('do_execute', query, params)
-        cursor.execute(query, params)
+        cursor.execute(query, *params)
 
     def do_executemany(self, cursor, query, params, context=None):
-        query, params = self._fix_for_params(query, params, True)
         cursor.executemany(query, params)
 
     def do_begin(self, connection):
         pass
+        # connection.cursor().execute("START TRANSACTION")
 
     def do_rollback(self, connection):
         connection.rollback()
