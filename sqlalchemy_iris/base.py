@@ -1,3 +1,4 @@
+import re
 import intersystems_iris.dbapi._DBAPI as dbapi
 from . import information_schema as ischema
 from . import types
@@ -461,6 +462,19 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
     def visit_check_constraint(self, constraint, **kw):
         raise exc.CompileError("Check CONSTRAINT not supported")
 
+    def visit_computed_column(self, generated, **kwargs):
+        text = self.sql_compiler.process(
+            generated.sqltext, include_table=True, literal_binds=True
+        )
+        text = re.sub(r"(?<!')(\b[^\d]\w+\b)", r'{\g<1>}', text)
+        # text = text.replace("'", '"')
+        text = 'COMPUTECODE {Set {*} = %s}' % (text,)
+        if generated.persisted is False:
+            text += ' CALCULATED'
+        else:
+            text += ' COMPUTEONCHANGE ("%%UPDATE")'
+        return text
+
     def get_column_specification(self, column, **kwargs):
 
         colspec = [
@@ -486,6 +500,9 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
         default = self.get_column_default_string(column)
         if default is not None:
             colspec.append("DEFAULT " + default)
+
+        if column.computed is not None:
+            colspec.append(self.process(column.computed))
 
         if not column.nullable:
             colspec.append("NOT NULL")
@@ -583,7 +600,6 @@ class IRISDialect(default.DefaultDialect):
 
     def __init__(self, **kwargs):
         default.DefaultDialect.__init__(self, **kwargs)
-        self._auto_parallel = 1
 
     _isolation_lookup = set(
         [
@@ -920,7 +936,9 @@ class IRISDialect(default.DefaultDialect):
 
     def get_columns(self, connection, table_name, schema=None, **kw):
         schema_name = self.get_schema(schema)
+        tables = ischema.tables
         columns = ischema.columns
+        property = ischema.property
 
         whereclause = sql.and_(
             columns.c.table_name == str(table_name),
@@ -938,9 +956,24 @@ class IRISDialect(default.DefaultDialect):
                 columns.c.column_default,
                 columns.c.collation_name,
                 columns.c.auto_increment,
+                property.c.SqlComputeCode,
+                property.c.Calculated,
+                property.c.Transient,
                 # columns.c.description,
             )
             .select_from(columns)
+            .outerjoin(
+                property,
+                sql.and_(
+                    property.c.SqlFieldName == columns.c.column_name,
+                    property.c.parent ==
+                    sql.select(tables.c.classname)
+                    .where(
+                        columns.c.table_name == tables.c.table_name,
+                        columns.c.table_schema == tables.c.table_schema,
+                    ).scalar_subquery()
+                ),
+            )
             .where(whereclause)
             .order_by(columns.c.ordinal_position)
         )
@@ -958,6 +991,9 @@ class IRISDialect(default.DefaultDialect):
             default = row[columns.c.column_default]
             collation = row[columns.c.collation_name]
             autoincrement = row[columns.c.auto_increment]
+            sqlComputeCode = row[property.c.SqlComputeCode]
+            calculated = row[property.c.Calculated]
+            transient = row[property.c.Transient]
             # description = row[columns.c.description]
 
             coltype = self.ischema_names.get(type_, None)
@@ -997,6 +1033,15 @@ class IRISDialect(default.DefaultDialect):
                 "autoincrement": autoincrement,
                 # "comment": description,
             }
+            if sqlComputeCode and 'set {*} = ' in sqlComputeCode.lower():
+                sqltext = sqlComputeCode
+                sqltext = sqltext.split(' = ')[1]
+                sqltext = re.sub(r"{(\b\w+\b)}", r"\g<1>", sqltext)
+                persisted = not calculated and not transient
+                cdict['computed'] = {
+                    "sqltext": sqltext,
+                    "persisted": persisted,
+                }
             cols.append(cdict)
 
         if cols:

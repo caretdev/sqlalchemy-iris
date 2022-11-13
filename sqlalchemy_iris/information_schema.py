@@ -43,6 +43,7 @@ tables = Table(
     Column("TABLE_SCHEMA", String, key="table_schema"),
     Column("TABLE_NAME", String, key="table_name"),
     Column("TABLE_TYPE", String, key="table_type"),
+    Column("CLASSNAME", String, key="classname"),
     schema="INFORMATION_SCHEMA",
 )
 
@@ -56,6 +57,8 @@ columns = Table(
     Column("ORDINAL_POSITION", Integer, key="ordinal_position"),
     Column("COLUMN_DEFAULT", Integer, key="column_default"),
     Column("IS_NULLABLE", YESNO, key="is_nullable"),
+    Column("IS_IDENTITY", YESNO, key="is_identity"),
+    Column("IS_GENERATED", YESNO, key="is_generated"),
     Column("DATA_TYPE", String, key="data_type"),
     Column(
         "CHARACTER_MAXIMUM_LENGTH", Integer, key="character_maximum_length"
@@ -68,6 +71,17 @@ columns = Table(
     Column("PRIMARY_KEY", YESNO, key="primary_key"),
     Column("DESCIPTION", String, key="desciption"),
     schema="INFORMATION_SCHEMA",
+)
+property = Table(
+    "PropertyDefinition",
+    ischema,
+    Column("parent", String),
+    Column("SqlFieldName", String),
+    Column("SqlComputeCode", String),
+    Column("SqlComputed", Boolean),
+    Column("Calculated", Boolean),
+    Column("Transient", Boolean),
+    schema="%Dictionary",
 )
 
 indexes = Table(
