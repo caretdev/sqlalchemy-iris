@@ -65,3 +65,31 @@ class Requirements(SuiteRequirements):
         """If persistence information is returned by the reflection of
         computed columns"""
         return exclusions.open()
+
+    @property
+    def two_phase_transactions(self):
+        """Target database must support two-phase transactions."""
+
+        return exclusions.closed()
+
+    @property
+    def binary_comparisons(self):
+        """target database/driver can allow BLOB/BINARY fields to be compared
+        against a bound parameter value.
+        """
+
+        return exclusions.closed()
+
+    @property
+    def binary_literals(self):
+        """target backend supports simple binary literals, e.g. an
+        expression like::
+
+            SELECT CAST('foo' AS BINARY)
+
+        Where ``BINARY`` is the type emitted from :class:`.LargeBinary`,
+        e.g. it could be ``BLOB`` or similar.
+        """
+
+        return exclusions.closed()
+

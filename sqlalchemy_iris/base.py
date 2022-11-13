@@ -351,11 +351,6 @@ class IRISCompiler(sql.compiler.SQLCompiler):
     def get_select_precolumns(self, select, **kw):
 
         text = ""
-        if select._has_row_limiting_clause and self._use_top(select):
-            text += "TOP %s " % self.process(
-                self._get_limit_or_fetch(select), **kw
-            )
-
         if select._distinct or select._distinct_on:
             if select._distinct_on:
                 text += (
@@ -370,6 +365,11 @@ class IRISCompiler(sql.compiler.SQLCompiler):
                 )
             else:
                 text += "DISTINCT "
+
+        if select._has_row_limiting_clause and self._use_top(select):
+            text += "TOP %s " % self.process(
+                self._get_limit_or_fetch(select), **kw
+            )
 
         return text
 
