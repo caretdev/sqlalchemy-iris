@@ -348,6 +348,18 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         else:
             return select._fetch_clause
 
+    def visit_true(self, expr, **kw):
+        return "1"
+
+    def visit_false(self, expr, **kw):
+        return "0"
+
+    def visit_is_true_unary_operator(self, element, operator, **kw):
+        return "%s = 1" % self.process(element.element, **kw)
+
+    def visit_is_false_unary_operator(self, element, operator, **kw):
+        return "%s = 0" % self.process(element.element, **kw)
+
     def get_select_precolumns(self, select, **kw):
 
         text = ""
@@ -556,6 +568,7 @@ class IRISExecutionContext(default.DefaultExecutionContext):
 
 
 colspecs = {
+    sqltypes.Boolean: types.IRISBoolean,
     sqltypes.Date: types.IRISDate,
     sqltypes.DateTime: types.IRISDateTime,
     sqltypes.TIMESTAMP: types.IRISTimeStamp,
@@ -580,10 +593,12 @@ class IRISDialect(default.DefaultDialect):
     supports_views = True
     supports_default_values = True
 
+    supports_native_boolean = True
+    non_native_boolean_check_constraint = False
+
     supports_sequences = False
 
     postfetch_lastrowid = True
-    non_native_boolean_check_constraint = False
     supports_simple_order_by_label = False
     supports_empty_insert = False
     supports_is_distinct_from = False

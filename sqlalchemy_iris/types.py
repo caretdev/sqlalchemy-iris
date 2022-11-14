@@ -5,6 +5,27 @@ from sqlalchemy.sql import sqltypes
 HOROLOG_ORDINAL = datetime.date(1840, 12, 31).toordinal()
 
 
+class IRISBoolean(sqltypes.Boolean):
+    def _should_create_constraint(self, compiler, **kw):
+        return False
+
+    def bind_processor(self, dialect):
+        def process(value):
+            if isinstance(value, int):
+                return 1 if value > 0 else 0
+            elif isinstance(value, bool):
+                return 1 if value is True else 0
+            return None
+        return process
+
+    def result_processor(self, dialect, coltype):
+        def process(value):
+            if isinstance(value, int):
+                return value > 0
+            return value
+        return process
+
+
 class IRISDate(sqltypes.Date):
     def bind_processor(self, dialect):
         def process(value):
