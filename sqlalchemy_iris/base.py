@@ -348,6 +348,21 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         else:
             return select._fetch_clause
 
+    def visit_delete(self, delete_stmt, **kw):
+        if not delete_stmt._where_criteria and delete_stmt.table.foreign_keys:
+            # https://community.intersystems.com/post/sql-foreign-key-constraint-check-delete
+            table = delete_stmt.table
+            nocheck = False
+            for fk in table.foreign_keys:
+                nocheck = not fk.ondelete and fk.parent.table == table
+                if not nocheck:
+                    break
+
+            if nocheck is True:
+                delete_stmt = delete_stmt.prefix_with('%NOCHECK', dialect='iris')
+        text = super().visit_delete(delete_stmt, **kw)
+        return text
+
     def visit_true(self, expr, **kw):
         return "1"
 

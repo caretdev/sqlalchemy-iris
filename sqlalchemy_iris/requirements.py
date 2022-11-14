@@ -93,3 +93,36 @@ class Requirements(SuiteRequirements):
 
         return exclusions.closed()
 
+    @property
+    def foreign_key_constraint_option_reflection_ondelete(self):
+        return exclusions.open()
+
+    @property
+    def fk_constraint_option_reflection_ondelete_restrict(self):
+        return exclusions.closed()
+
+    @property
+    def fk_constraint_option_reflection_ondelete_noaction(self):
+        return exclusions.open()
+
+    @property
+    def foreign_key_constraint_option_reflection_onupdate(self):
+        return exclusions.open()
+
+    @property
+    def fk_constraint_option_reflection_onupdate_restrict(self):
+        return exclusions.closed()
+
+
+    @property
+    def precision_numerics_many_significant_digits(self):
+        """target backend supports values with many digits on both sides,
+        such as 319438950232418390.273596, 87673.594069654243
+
+        """
+        return exclusions.closed()
+
+    @property
+    def symbol_names_w_double_quote(self):
+        """Target driver can create tables with a name like 'some " table'"""
+        return exclusions.closed()
