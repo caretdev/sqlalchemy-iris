@@ -579,6 +579,30 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
     def post_create_table(self, table):
         return " WITH %CLASSPARAMETER ALLOWIDENTITYINSERT = 1"
 
+    def visit_create_index(
+        self, create, include_schema=False, include_table_schema=True, **kw
+    ):
+        text = super().visit_create_index(create, include_schema, include_table_schema, **kw)
+
+        index = create.element
+        preparer = self.preparer
+
+        # handle other included columns
+        includeclause = index.dialect_options["iris"]["include"]
+        if includeclause:
+            inclusions = [
+                index.table.c[col]
+                if isinstance(col, util.string_types)
+                else col
+                for col in includeclause
+            ]
+
+            text += " WITH DATA (%s)" % ", ".join(
+                [preparer.quote(c.name) for c in inclusions]
+            )
+
+        return text
+
 
 class IRISTypeCompiler(compiler.GenericTypeCompiler):
     def visit_boolean(self, type_, **kw):
@@ -666,6 +690,10 @@ class IRISDialect(default.DefaultDialect):
     preparer = IRISIdentifierPreparer
     type_compiler = IRISTypeCompiler
     execution_ctx_cls = IRISExecutionContext
+
+    construct_arguments = [
+        (schema.Index, {"include": None}),
+    ]
 
     def __init__(self, **kwargs):
         default.DefaultDialect.__init__(self, **kwargs)
@@ -808,6 +836,8 @@ class IRISDialect(default.DefaultDialect):
     def get_indexes(self, connection, table_name, schema=None, unique=False, **kw):
         schema_name = self.get_schema(schema)
         indexes = ischema.indexes
+        tables = ischema.tables
+        index_def = ischema.index_definition
 
         s = (
             sql.select(
@@ -816,6 +846,20 @@ class IRISDialect(default.DefaultDialect):
                 indexes.c.primary_key,
                 indexes.c.non_unique,
                 indexes.c.asc_or_desc,
+                index_def.c.Data,
+            )
+            .select_from(indexes)
+            .outerjoin(
+                index_def,
+                sql.and_(
+                    index_def.c.SqlName == indexes.c.index_name,
+                    index_def.c.parent ==
+                    sql.select(tables.c.classname)
+                    .where(
+                        indexes.c.table_name == tables.c.table_name,
+                        indexes.c.table_schema == tables.c.table_schema,
+                    ).scalar_subquery()
+                ),
             )
             .where(
                 sql.and_(
@@ -838,6 +882,7 @@ class IRISDialect(default.DefaultDialect):
                 _,
                 nuniq,
                 _,
+                include,
             ) = row
 
             indexrec = indexes[idxname]
@@ -849,6 +894,12 @@ class IRISDialect(default.DefaultDialect):
             indexrec["column_names"].append(
                 self.normalize_name(colname)
             )
+            include = include.split(',') if include else []
+            indexrec["include_columns"] = include
+            if include:
+                indexrec["dialect_options"] = {
+                    "iris_include": include
+                }
 
         indexes = list(indexes.values())
         return indexes
@@ -1007,7 +1058,7 @@ class IRISDialect(default.DefaultDialect):
         schema_name = self.get_schema(schema)
         tables = ischema.tables
         columns = ischema.columns
-        property = ischema.property
+        property = ischema.property_definition
 
         whereclause = sql.and_(
             columns.c.table_name == str(table_name),

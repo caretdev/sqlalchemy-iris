@@ -72,7 +72,7 @@ columns = Table(
     Column("DESCIPTION", String, key="desciption"),
     schema="INFORMATION_SCHEMA",
 )
-property = Table(
+property_definition = Table(
     "PropertyDefinition",
     ischema,
     Column("parent", String),
@@ -99,6 +99,15 @@ indexes = Table(
     Column("ASC_OR_DESC", String, key="asc_or_desc"),
     Column("PRIMARY_KEY", Boolean, key="primary_key"),
     schema="INFORMATION_SCHEMA",
+)
+
+index_definition = Table(
+    "IndexDefinition",
+    ischema,
+    Column("parent", String),
+    Column("SqlName", String),
+    Column("Data", String),
+    schema="%Dictionary",
 )
 
 key_constraints = Table(
