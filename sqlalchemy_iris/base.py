@@ -10,7 +10,9 @@ from sqlalchemy.sql import compiler
 from sqlalchemy.sql import util as sql_util
 from sqlalchemy.sql import between
 from sqlalchemy.sql import func
+from sqlalchemy.sql.functions import ReturnTypeFromArgs
 from sqlalchemy.sql import expression
+from sqlalchemy.sql import schema
 from sqlalchemy import sql, text
 from sqlalchemy import util
 from sqlalchemy import types as sqltypes
@@ -406,59 +408,89 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             or select._simple_int_clause(select._fetch_clause)
         )
 
+    def visit_irisexact_func(self, fn, **kw):
+        return "%EXACT" + self.function_argspec(fn)
+
+    def _use_exact_for_ordered_string(self, select):
+        """
+        `SELECT string_value FROM some_table ORDER BY string_value`
+        Will return `string_value` in uppercase
+        So, this method fixes query to use %EXACT() function
+        `SELECT %EXACT(string_value) AS string_value FROM some_table ORDER BY string_value`
+        """
+        def _add_exact(column):
+            if isinstance(column.type, sqltypes.String):
+                return IRISExact(column).label(column._label if column._label else column.name)
+            return column
+
+        _order_by_clauses = [
+            sql_util.unwrap_label_reference(elem)
+            for elem in select._order_by_clause.clauses
+        ]
+        if _order_by_clauses:
+            select._raw_columns = [
+                (_add_exact(c) if isinstance(c, schema.Column) and c in _order_by_clauses else c)
+                for c in select._raw_columns
+            ]
+
+        return select
+
     def translate_select_structure(self, select_stmt, **kwargs):
+        select = select_stmt
+        if getattr(select, "_iris_visit", None) is True:
+            return select
+
+        select._iris_visit = True
+        select = select._generate()
+
+        select = self._use_exact_for_ordered_string(select)
+
+        if not (
+            select._has_row_limiting_clause
+            and not self._use_top(select)
+        ):
+            return select
+
         """Look for ``LIMIT`` and OFFSET in a select statement, and if
         so tries to wrap it in a subquery with ``row_number()`` criterion.
 
         """
-        select = select_stmt
+        _order_by_clauses = [
+            sql_util.unwrap_label_reference(elem)
+            for elem in select._order_by_clause.clauses
+        ]
+        if not _order_by_clauses:
+            _order_by_clauses = [text('%id')]
 
-        if (
-            select._has_row_limiting_clause
-            and not self._use_top(select)
-            and not getattr(select, "_iris_visit", None)
-        ):
-            _order_by_clauses = [
-                sql_util.unwrap_label_reference(elem)
-                for elem in select._order_by_clause.clauses
-            ]
+        limit_clause = self._get_limit_or_fetch(select)
+        offset_clause = select._offset_clause
 
-            if not _order_by_clauses:
-                _order_by_clauses = [text('%id')]
+        label = "iris_rn"
+        select = (
+            select.add_columns(
+                sql.func.ROW_NUMBER()
+                .over(order_by=_order_by_clauses)
+                .label(label)
+            )
+            .order_by(None)
+            .alias()
+        )
 
-            limit_clause = self._get_limit_or_fetch(select)
-            offset_clause = select._offset_clause
-
-            select = select._generate()
-            select._iris_visit = True
-            label = "iris_rn"
-            select = (
-                select.add_columns(
-                    sql.func.ROW_NUMBER()
-                    .over(order_by=_order_by_clauses)
-                    .label(label)
+        iris_rn = sql.column(label)
+        limitselect = sql.select(
+            *[c for c in select.c if c.key != label]
+        )
+        if offset_clause is not None:
+            if limit_clause is not None:
+                limitselect = limitselect.where(
+                    between(iris_rn, offset_clause + 1,
+                            limit_clause + offset_clause)
                 )
-                .order_by(None)
-                .alias()
-            )
-
-            iris_rn = sql.column(label)
-            limitselect = sql.select(
-                *[c for c in select.c if c.key != label]
-            )
-            if offset_clause is not None:
-                if limit_clause is not None:
-                    limitselect = limitselect.where(
-                        between(iris_rn, offset_clause + 1,
-                                limit_clause + offset_clause)
-                    )
-                else:
-                    limitselect = limitselect.where(iris_rn > offset_clause)
             else:
-                limitselect = limitselect.where(iris_rn <= (limit_clause))
-            return limitselect
+                limitselect = limitselect.where(iris_rn > offset_clause)
         else:
-            return select
+            limitselect = limitselect.where(iris_rn <= (limit_clause))
+        return limitselect
 
     def order_by_clause(self, select, **kw):
         order_by = self.process(select._order_by_clause, **kw)
@@ -488,6 +520,7 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
 
     def visit_check_constraint(self, constraint, **kw):
         raise exc.CompileError("Check CONSTRAINT not supported")
+        # pass
 
     def visit_computed_column(self, generated, **kwargs):
         text = self.sql_compiler.process(
@@ -589,6 +622,12 @@ colspecs = {
     sqltypes.TIMESTAMP: types.IRISTimeStamp,
     sqltypes.Time: types.IRISTime,
 }
+
+
+class IRISExact(ReturnTypeFromArgs):
+    """The IRIS SQL %EXACT() function."""
+
+    inherit_cache = True
 
 
 class IRISDialect(default.DefaultDialect):
