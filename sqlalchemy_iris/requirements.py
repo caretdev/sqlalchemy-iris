@@ -126,3 +126,50 @@ class Requirements(SuiteRequirements):
     def symbol_names_w_double_quote(self):
         """Target driver can create tables with a name like 'some " table'"""
         return exclusions.closed()
+
+    @property
+    def unique_constraint_reflection(self):
+        return exclusions.open()
+
+    @property
+    def index_reflects_included_columns(self):
+        return exclusions.open()
+
+    @property
+    def intersect(self):
+        """Target database must support INTERSECT or equivalent."""
+        return exclusions.closed()
+
+    @property
+    def except_(self):
+        """Target database must support EXCEPT or equivalent (i.e. MINUS)."""
+        return exclusions.closed()
+
+    @property
+    def boolean_col_expressions(self):
+        """Target database must support boolean expressions as columns"""
+
+        return exclusions.closed()
+
+    @property
+    def order_by_label_with_expression(self):
+        """target backend supports ORDER BY a column label within an
+        expression.
+
+        Basically this::
+
+            select data as foo from test order by foo || 'bar'
+
+        Lots of databases including PostgreSQL don't support this,
+        so this is off by default.
+
+        """
+        return exclusions.closed()
+
+    @property
+    def memory_process_intensive(self):
+        """Driver is able to handle the memory tests which run in a subprocess
+        and iterate through hundreds of connections
+
+        """
+        return exclusions.closed()

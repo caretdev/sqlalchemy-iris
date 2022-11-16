@@ -1,8 +1,6 @@
-from sqlalchemy.testing.suite import QuotedNameArgumentTest as _QuotedNameArgumentTest
 from sqlalchemy.testing.suite import FetchLimitOffsetTest as _FetchLimitOffsetTest
 from sqlalchemy.testing.suite import CompoundSelectTest as _CompoundSelectTest
 from sqlalchemy.testing import fixtures
-# from sqlalchemy.testing import AssertsExecutionResults, AssertsCompiledSQL
 from sqlalchemy import testing
 from sqlalchemy import Table, Column, Integer, String, select
 import pytest
@@ -14,11 +12,6 @@ class CompoundSelectTest(_CompoundSelectTest):
     @pytest.mark.skip()
     def test_limit_offset_aliased_selectable_in_unions(self):
         return
-
-
-@pytest.mark.skip()
-class QuotedNameArgumentTest(_QuotedNameArgumentTest):
-    pass
 
 
 class FetchLimitOffsetTest(_FetchLimitOffsetTest):

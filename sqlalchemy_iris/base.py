@@ -365,6 +365,9 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         text = super().visit_delete(delete_stmt, **kw)
         return text
 
+    def for_update_clause(self, select, **kw):
+        return ""
+
     def visit_true(self, expr, **kw):
         return "1"
 
@@ -425,7 +428,7 @@ class IRISCompiler(sql.compiler.SQLCompiler):
 
         _order_by_clauses = [
             sql_util.unwrap_label_reference(elem)
-            for elem in select._order_by_clause.clauses
+            for elem in select._order_by_clause.clauses if isinstance(elem, schema.Column)
         ]
         if _order_by_clauses:
             select._raw_columns = [
@@ -508,6 +511,19 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             text = 'CONVERT(VARCHAR, %s)' % (text, )
         return text
 
+    def visit_concat_op_binary(self, binary, operator, **kw):
+        return "STRING(%s, %s)" % (
+            self.process(binary.left, **kw),
+            self.process(binary.right, **kw),
+        )
+
+    def visit_mod_binary(self, binary, operator, **kw):
+        return (
+            self.process(binary.left, **kw)
+            + " # "
+            + self.process(binary.right, **kw)
+        )
+
 
 class IRISDDLCompiler(sql.compiler.DDLCompiler):
     """IRIS syntactic idiosyncrasies"""
@@ -519,8 +535,12 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
         return ""
 
     def visit_check_constraint(self, constraint, **kw):
-        raise exc.CompileError("Check CONSTRAINT not supported")
-        # pass
+        pass
+
+    def visit_add_constraint(self, create, **kw):
+        if isinstance(create.element, schema.CheckConstraint):
+            raise exc.CompileError("Can't add CHECK constraint")
+        return super().visit_add_constraint(create, **kw)
 
     def visit_computed_column(self, generated, **kwargs):
         text = self.sql_compiler.process(
@@ -706,6 +726,9 @@ class IRISDialect(default.DefaultDialect):
         ]
     )
 
+    def _get_default_schema_name(self, connection):
+        return IRISDialect.default_schema_name
+
     def _get_option(self, connection, option):
         cursor = connection.cursor()
         # cursor = connection.cursor()
@@ -750,6 +773,27 @@ class IRISDialect(default.DefaultDialect):
     def dbapi(cls):
         # dbapi.paramstyle = "format"
         return dbapi
+
+    def is_disconnect(self, e, connection, cursor):
+        if isinstance(e, self.dbapi.InterfaceError):
+            return "Connection is closed" in str(e)
+        return False
+
+    def do_ping(self, dbapi_connection):
+        cursor = None
+        try:
+            cursor = dbapi_connection.cursor()
+            try:
+                cursor.execute(self._dialect_specific_select_one)
+            finally:
+                cursor.close()
+        except self.dbapi.Error as err:
+            if self.is_disconnect(err, dbapi_connection, cursor):
+                return False
+            else:
+                raise
+        else:
+            return True
 
     def create_connect_args(self, url):
         opts = {}
