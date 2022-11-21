@@ -1208,10 +1208,7 @@ class IRISDialect(default.DefaultDialect):
                 }
             cols.append(cdict)
 
-        if cols:
-            return cols
-
-        return None
+        return cols
 
     @reflection.cache
     def get_view_names(self, connection, schema=None, **kw):
