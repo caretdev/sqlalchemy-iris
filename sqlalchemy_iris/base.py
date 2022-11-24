@@ -808,7 +808,7 @@ class IRISDialect(default.DefaultDialect):
         return ([], opts)
 
     def do_execute(self, cursor, query, params, context=None):
-        cursor.execute(query, *params)
+        cursor.execute(query, params)
 
     def do_executemany(self, cursor, query, params, context=None):
         cursor.executemany(query, params)
