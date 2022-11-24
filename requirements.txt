@@ -1,2 +1,2 @@
-intersystems_iris>=3.3.0b10
+intersystems_iris==3.3.0b10
 SQLAlchemy>=1.4
