@@ -91,7 +91,7 @@ class Requirements(SuiteRequirements):
         e.g. it could be ``BLOB`` or similar.
         """
 
-        return exclusions.closed()
+        return exclusions.open()
 
     @property
     def foreign_key_constraint_option_reflection_ondelete(self):
@@ -172,4 +172,45 @@ class Requirements(SuiteRequirements):
         and iterate through hundreds of connections
 
         """
+        return exclusions.closed()
+
+    @property
+    def ctes(self):
+        """Target database supports CTEs"""
+
+        return exclusions.open()
+
+    @property
+    def ctes_with_update_delete(self):
+        """target database supports CTES that ride on top of a normal UPDATE
+        or DELETE statement which refers to the CTE in a correlated subquery.
+
+        """
+
+        return exclusions.open()
+
+    @property
+    def ctes_on_dml(self):
+        """target database supports CTES which consist of INSERT, UPDATE
+        or DELETE *within* the CTE, e.g. WITH x AS (UPDATE....)"""
+
+        return exclusions.open()
+
+    @property
+    def autocommit(self):
+        """target dialect supports 'AUTOCOMMIT' as an isolation_level"""
+        return exclusions.open()
+
+    def get_isolation_levels(self, config):
+        levels = set(config.db.dialect._isolation_lookup)
+
+        default = "READ COMMITTED"
+        levels.add("AUTOCOMMIT")
+
+        return {"default": default, "supported": levels}
+
+    @property
+    def regexp_match(self):
+        """backend supports the regexp_match operator."""
+        # InterSystems use own format for %MATCHES and %PATTERN, it does not support Regular Expressions
         return exclusions.closed()

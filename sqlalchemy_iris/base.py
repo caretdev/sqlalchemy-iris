@@ -524,6 +524,14 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             + self.process(binary.right, **kw)
         )
 
+    def visit_regexp_match_op_binary(self, binary, operator, **kw):
+        # InterSystems use own format for %MATCHES, it does not support Regular Expressions
+        raise exc.CompileError("InterSystems IRIS does not support REGEXP")
+
+    def visit_not_regexp_match_op_binary(self, binary, operator, **kw):
+        # InterSystems use own format for %MATCHES, it does not support Regular Expressions
+        raise exc.CompileError("InterSystems IRIS does not support REGEXP")
+
 
 class IRISDDLCompiler(sql.compiler.DDLCompiler):
     """IRIS syntactic idiosyncrasies"""
@@ -642,6 +650,27 @@ class IRISIdentifierPreparer(sql.compiler.IdentifierPreparer):
         super(IRISIdentifierPreparer, self).__init__(
             dialect, omit_schema=False)
 
+    # def _escape_identifier(self, value):
+    #     value = value.replace(self.escape_quote, self.escape_to_quote)
+    #     return value.replace(".", "_")
+
+    def format_column(
+        self,
+        column,
+        use_table=False,
+        name=None,
+        table_name=None,
+        use_schema=False,
+        anon_map=None,
+    ):
+        if name is None:
+            name = column.name
+
+        # if '.' in name:
+        #     name = name.replace('.', '_')
+
+        return super().format_column(column, use_table, name, table_name, use_schema, anon_map)
+
 
 class IRISExecutionContext(default.DefaultExecutionContext):
 
@@ -678,6 +707,8 @@ class IRISDialect(default.DefaultDialect):
 
     name = 'iris'
 
+    embedded = False
+
     default_schema_name = "SQLUser"
 
     default_paramstyle = "format"
@@ -693,6 +724,8 @@ class IRISDialect(default.DefaultDialect):
 
     supports_native_boolean = True
     non_native_boolean_check_constraint = False
+
+    supports_multivalues_insert = True
 
     supports_sequences = False
 
@@ -741,7 +774,7 @@ class IRISDialect(default.DefaultDialect):
     def _set_option(self, connection, option, value):
         cursor = connection.cursor()
         # cursor = connection.cursor()
-        cursor.execute('SELECT %SYSTEM_SQL.Util_SetOption(?, ?)', option, value)
+        cursor.execute('SELECT %SYSTEM_SQL.Util_SetOption(?, ?)', [option, value])
         row = cursor.fetchone()
         if row:
             return row[0]
@@ -805,17 +838,55 @@ class IRISDialect(default.DefaultDialect):
 
         opts['autoCommit'] = False
 
+        opts['embedded'] = self.embedded
+
         return ([], opts)
 
+    _debug_queries = False
+    # _debug_queries = True
+
+    def _debug(self, query, params, many=False):
+        from decimal import Decimal
+        if not self._debug_queries:
+            return
+        if many:
+            for p in params:
+                self._debug(query, p)
+            return
+        for p in params:
+            if isinstance(p, Decimal):
+                v = str(p)
+            elif p is None:
+                v = 'NULL'
+            else:
+                v = '%r' % (p, )
+            query = query.replace('?', v, 1)
+        print('--')
+        print(query + ';')
+        print('--')
+
+    def _debug_pre(self, query, params, many=False):
+        print('-- do_execute' + 'many' if many else '')
+        if not self._debug_queries:
+            return
+        for line in query.split('\n'):
+            print('-- ', line)
+        if many:
+            print(params)
+        else:
+            for p in params:
+                print('-- @param = %r' % (p, ))
+
     def do_execute(self, cursor, query, params, context=None):
+        self._debug(query, params)
         cursor.execute(query, params)
 
     def do_executemany(self, cursor, query, params, context=None):
+        self._debug(query, params, True)
         cursor.executemany(query, params)
 
     def do_begin(self, connection):
         pass
-        # connection.cursor().execute("START TRANSACTION")
 
     def do_rollback(self, connection):
         connection.rollback()
@@ -1171,7 +1242,10 @@ class IRISDialect(default.DefaultDialect):
             ):
                 if charlen == -1:
                     charlen = None
-                kwargs["length"] = int(charlen)
+                try:
+                    kwargs["length"] = int(charlen)
+                except ValueError:
+                    kwargs["length"] = 0
                 if collation:
                     kwargs["collation"] = collation
             if coltype is None:

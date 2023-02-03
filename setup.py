@@ -19,6 +19,7 @@ setup(
     entry_points={
         "sqlalchemy.dialects": [
             "iris = sqlalchemy_iris.iris:IRISDialect_iris",
+            "iris.emb = sqlalchemy_iris.embedded:IRISDialect_emb",
         ]
     },
 )

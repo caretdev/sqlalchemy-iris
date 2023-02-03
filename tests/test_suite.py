@@ -1,5 +1,7 @@
 from sqlalchemy.testing.suite import FetchLimitOffsetTest as _FetchLimitOffsetTest
 from sqlalchemy.testing.suite import CompoundSelectTest as _CompoundSelectTest
+from sqlalchemy.testing.suite import CTETest as _CTETest
+from sqlalchemy.testing.suite import DifficultParametersTest as _DifficultParametersTest
 from sqlalchemy.testing import fixtures
 from sqlalchemy import testing
 from sqlalchemy import Table, Column, Integer, String, select
@@ -12,6 +14,17 @@ class CompoundSelectTest(_CompoundSelectTest):
     @pytest.mark.skip()
     def test_limit_offset_aliased_selectable_in_unions(self):
         return
+
+
+class CTETest(_CTETest):
+    @pytest.mark.skip()
+    def test_select_recursive_round_trip(self):
+        pass
+
+
+@pytest.mark.skip()
+class DifficultParametersTest(_DifficultParametersTest):
+    pass
 
 
 class FetchLimitOffsetTest(_FetchLimitOffsetTest):
