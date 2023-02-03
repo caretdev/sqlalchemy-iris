@@ -1,3 +1,5 @@
 wheel
 flake8
 pytest
+black
+twine

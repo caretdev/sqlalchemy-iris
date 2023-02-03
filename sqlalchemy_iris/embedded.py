@@ -14,5 +14,10 @@ class IRISDialect_emb(IRISDialect):
     def _set_option(self, connection, option, value):
         return connection.iris.cls('%SYSTEM.SQL.Util').SetOption(option)
 
+    @classmethod
+    def import_dbapi(cls):
+        import intersystems_iris.dbapi._DBAPI as dbapi
+        return dbapi
+
 
 dialect = IRISDialect_emb
