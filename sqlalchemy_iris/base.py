@@ -763,25 +763,28 @@ class IRISDialect(default.DefaultDialect):
         return IRISDialect.default_schema_name
 
     def _get_option(self, connection, option):
-        cursor = connection.cursor()
-        # cursor = connection.cursor()
-        cursor.execute('SELECT %SYSTEM_SQL.Util_GetOption(?)', option)
-        row = cursor.fetchone()
-        if row:
-            return row[0]
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT %SYSTEM_SQL.Util_GetOption(?)', option)
+            row = cursor.fetchone()
+            if row:
+                return row[0]
         return None
 
-    def _set_option(self, connection, option, value):
-        cursor = connection.cursor()
-        # cursor = connection.cursor()
-        cursor.execute('SELECT %SYSTEM_SQL.Util_SetOption(?, ?)', [option, value])
-        row = cursor.fetchone()
-        if row:
-            return row[0]
+    def _set_option(self, connection, option, value):        
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT %SYSTEM_SQL.Util_SetOption(?, ?)', [option, value])
+            row = cursor.fetchone()
+            if row:
+                return row[0]
         return None
 
     def get_isolation_level(self, connection):
-        level = int(self._get_option(connection, 'IsolationMode'))
+        try:
+            level = int(self._get_option(connection, 'IsolationMode'))
+        except dbapi.InterfaceError:
+            # caught access violation error
+            # by default it's 0
+            level = 0
         if level == 0:
             return 'READ UNCOMMITTED'
         elif level == 1:
@@ -795,12 +798,10 @@ class IRISDialect(default.DefaultDialect):
             connection.setAutoCommit(True)
         else:
             connection.setAutoCommit(False)
-            level = 0
-            if level_str == 'READ COMMITTED':
-                level = 1
-            elif level_str == 'READ VERIFIED':
-                level = 3
-            self._set_option(connection, 'IsolationMode', level)
+            if level_str not in ['READ COMMITTED', 'READ VERIFIED']:
+                level_str = 'READ UNCOMMITTED'
+            with connection.cursor() as cursor:
+                cursor.execute('SET TRANSACTION ISOLATION LEVEL ' + level_str)
 
     @classmethod
     def dbapi(cls):
