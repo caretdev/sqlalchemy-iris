@@ -361,7 +361,7 @@ class IRISCompiler(sql.compiler.SQLCompiler):
                     break
 
             if nocheck is True:
-                delete_stmt = delete_stmt.prefix_with('%NOCHECK', dialect='iris')
+                delete_stmt = delete_stmt.prefix_with("%NOCHECK", dialect="iris")
         text = super().visit_delete(delete_stmt, **kw)
         return text
 
@@ -381,17 +381,13 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         return "%s = 0" % self.process(element.element, **kw)
 
     def get_select_precolumns(self, select, **kw):
-
         text = ""
         if select._distinct or select._distinct_on:
             if select._distinct_on:
                 text += (
                     "DISTINCT ON ("
                     + ", ".join(
-                        [
-                            self.process(col, **kw)
-                            for col in select._distinct_on
-                        ]
+                        [self.process(col, **kw) for col in select._distinct_on]
                     )
                     + ") "
                 )
@@ -399,9 +395,7 @@ class IRISCompiler(sql.compiler.SQLCompiler):
                 text += "DISTINCT "
 
         if select._has_row_limiting_clause and self._use_top(select):
-            text += "TOP %s " % self.process(
-                self._get_limit_or_fetch(select), **kw
-            )
+            text += "TOP %s " % self.process(self._get_limit_or_fetch(select), **kw)
 
         return text
 
@@ -421,18 +415,26 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         So, this method fixes query to use %EXACT() function
         `SELECT %EXACT(string_value) AS string_value FROM some_table ORDER BY string_value`
         """
+
         def _add_exact(column):
             if isinstance(column.type, sqltypes.String):
-                return IRISExact(column).label(column._label if column._label else column.name)
+                return IRISExact(column).label(
+                    column._label if column._label else column.name
+                )
             return column
 
         _order_by_clauses = [
             sql_util.unwrap_label_reference(elem)
-            for elem in select._order_by_clause.clauses if isinstance(elem, schema.Column)
+            for elem in select._order_by_clause.clauses
+            if isinstance(elem, schema.Column)
         ]
         if _order_by_clauses:
             select._raw_columns = [
-                (_add_exact(c) if isinstance(c, schema.Column) and c in _order_by_clauses else c)
+                (
+                    _add_exact(c)
+                    if isinstance(c, schema.Column) and c in _order_by_clauses
+                    else c
+                )
                 for c in select._raw_columns
             ]
 
@@ -448,10 +450,7 @@ class IRISCompiler(sql.compiler.SQLCompiler):
 
         select = self._use_exact_for_ordered_string(select)
 
-        if not (
-            select._has_row_limiting_clause
-            and not self._use_top(select)
-        ):
+        if not (select._has_row_limiting_clause and not self._use_top(select)):
             return select
 
         """Look for ``LIMIT`` and OFFSET in a select statement, and if
@@ -463,7 +462,7 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             for elem in select._order_by_clause.clauses
         ]
         if not _order_by_clauses:
-            _order_by_clauses = [text('%id')]
+            _order_by_clauses = [text("%id")]
 
         limit_clause = self._get_limit_or_fetch(select)
         offset_clause = select._offset_clause
@@ -471,23 +470,18 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         label = "iris_rn"
         select = (
             select.add_columns(
-                sql.func.ROW_NUMBER()
-                .over(order_by=_order_by_clauses)
-                .label(label)
+                sql.func.ROW_NUMBER().over(order_by=_order_by_clauses).label(label)
             )
             .order_by(None)
             .alias()
         )
 
         iris_rn = sql.column(label)
-        limitselect = sql.select(
-            *[c for c in select.c if c.key != label]
-        )
+        limitselect = sql.select(*[c for c in select.c if c.key != label])
         if offset_clause is not None:
             if limit_clause is not None:
                 limitselect = limitselect.where(
-                    between(iris_rn, offset_clause + 1,
-                            limit_clause + offset_clause)
+                    between(iris_rn, offset_clause + 1, limit_clause + offset_clause)
                 )
             else:
                 limitselect = limitselect.where(iris_rn > offset_clause)
@@ -504,11 +498,13 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             return ""
 
     def visit_column(self, column, within_columns_clause=False, **kwargs):
-        text = super().visit_column(column, within_columns_clause=within_columns_clause, **kwargs)
+        text = super().visit_column(
+            column, within_columns_clause=within_columns_clause, **kwargs
+        )
         if within_columns_clause:
             return text
         if isinstance(column.type, sqltypes.Text):
-            text = 'CONVERT(VARCHAR, %s)' % (text, )
+            text = "CONVERT(VARCHAR, %s)" % (text,)
         return text
 
     def visit_concat_op_binary(self, binary, operator, **kw):
@@ -519,9 +515,7 @@ class IRISCompiler(sql.compiler.SQLCompiler):
 
     def visit_mod_binary(self, binary, operator, **kw):
         return (
-            self.process(binary.left, **kw)
-            + " # "
-            + self.process(binary.right, **kw)
+            self.process(binary.left, **kw) + " # " + self.process(binary.right, **kw)
         )
 
     def visit_regexp_match_op_binary(self, binary, operator, **kw):
@@ -554,25 +548,21 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
         text = self.sql_compiler.process(
             generated.sqltext, include_table=True, literal_binds=True
         )
-        text = re.sub(r"(?<!')(\b[^\d]\w+\b)", r'{\g<1>}', text)
+        text = re.sub(r"(?<!')(\b[^\d]\w+\b)", r"{\g<1>}", text)
         # text = text.replace("'", '"')
-        text = 'COMPUTECODE {Set {*} = %s}' % (text,)
+        text = "COMPUTECODE {Set {*} = %s}" % (text,)
         if generated.persisted is False:
-            text += ' CALCULATED'
+            text += " CALCULATED"
         else:
             text += ' COMPUTEONCHANGE ("%%UPDATE")'
         return text
 
     def get_column_specification(self, column, **kwargs):
-
         colspec = [
             self.preparer.format_column(column),
         ]
 
-        if (
-            column.primary_key
-            and column is column.table._autoincrement_column
-        ):
+        if column.primary_key and column is column.table._autoincrement_column:
             # colspec.append("SERIAL")
             # IDENTITY and ALLOWIDENTITYINSERT = 1 in table instead of SERIAL to solve issue with LAST_IDENTITY()
             colspec.append("IDENTITY")
@@ -597,9 +587,7 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
 
         comment = column.comment
         if comment is not None:
-            literal = self.sql_compiler.render_literal_value(
-                comment, sqltypes.String()
-            )
+            literal = self.sql_compiler.render_literal_value(comment, sqltypes.String())
             colspec.append("%DESCRIPTION " + literal)
 
         return " ".join(colspec)
@@ -610,7 +598,9 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
     def visit_create_index(
         self, create, include_schema=False, include_table_schema=True, **kw
     ):
-        text = super().visit_create_index(create, include_schema, include_table_schema, **kw)
+        text = super().visit_create_index(
+            create, include_schema, include_table_schema, **kw
+        )
 
         index = create.element
         preparer = self.preparer
@@ -619,9 +609,7 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
         includeclause = index.dialect_options["iris"]["include"]
         if includeclause:
             inclusions = [
-                index.table.c[col]
-                if isinstance(col, util.string_types)
-                else col
+                index.table.c[col] if isinstance(col, util.string_types) else col
                 for col in includeclause
             ]
 
@@ -642,13 +630,10 @@ class IRISIdentifierPreparer(sql.compiler.IdentifierPreparer):
 
     reserved_words = compiler.RESERVED_WORDS.copy()
     reserved_words.update(RESERVED_WORDS)
-    illegal_initial_characters = compiler.ILLEGAL_INITIAL_CHARACTERS.union(
-        ["_"]
-    )
+    illegal_initial_characters = compiler.ILLEGAL_INITIAL_CHARACTERS.union(["_"])
 
     def __init__(self, dialect):
-        super(IRISIdentifierPreparer, self).__init__(
-            dialect, omit_schema=False)
+        super(IRISIdentifierPreparer, self).__init__(dialect, omit_schema=False)
 
     # def _escape_identifier(self, value):
     #     value = value.replace(self.escape_quote, self.escape_to_quote)
@@ -669,11 +654,12 @@ class IRISIdentifierPreparer(sql.compiler.IdentifierPreparer):
         # if '.' in name:
         #     name = name.replace('.', '_')
 
-        return super().format_column(column, use_table, name, table_name, use_schema, anon_map)
+        return super().format_column(
+            column, use_table, name, table_name, use_schema, anon_map
+        )
 
 
 class IRISExecutionContext(default.DefaultExecutionContext):
-
     def get_lastrowid(self):
         try:
             return self.cursor.lastrowid
@@ -704,8 +690,7 @@ class IRISExact(ReturnTypeFromArgs):
 
 
 class IRISDialect(default.DefaultDialect):
-
-    name = 'iris'
+    name = "iris"
 
     embedded = False
 
@@ -762,17 +747,41 @@ class IRISDialect(default.DefaultDialect):
     def _get_default_schema_name(self, connection):
         return IRISDialect.default_schema_name
 
+    def on_connect(self):
+        super_ = super().on_connect()
+
+        def on_connect(conn):
+            if super_ is not None:
+                super_(conn)
+
+            self._dictionary_access = False
+            with conn.cursor() as cursor:
+                cursor.execute("%CHECKPRIV SELECT ON %Dictionary.PropertyDefinition")
+                self._dictionary_access = cursor.sqlcode == 0
+
+            if not self._dictionary_access:
+                util.warn(
+                    """
+There are no access to %Dictionary, may be required for some advanced features,
+ such as Calculated fields, and include columns in indexes
+                """.replace(
+                        "\n", ""
+                    )
+                )
+
+        return on_connect
+
     def _get_option(self, connection, option):
         with connection.cursor() as cursor:
-            cursor.execute('SELECT %SYSTEM_SQL.Util_GetOption(?)', option)
+            cursor.execute("SELECT %SYSTEM_SQL.Util_GetOption(?)", option)
             row = cursor.fetchone()
             if row:
                 return row[0]
         return None
 
-    def _set_option(self, connection, option, value):        
+    def _set_option(self, connection, option, value):
         with connection.cursor() as cursor:
-            cursor.execute('SELECT %SYSTEM_SQL.Util_SetOption(?, ?)', [option, value])
+            cursor.execute("SELECT %SYSTEM_SQL.Util_SetOption(?, ?)", [option, value])
             row = cursor.fetchone()
             if row:
                 return row[0]
@@ -780,17 +789,17 @@ class IRISDialect(default.DefaultDialect):
 
     def get_isolation_level(self, connection):
         try:
-            level = int(self._get_option(connection, 'IsolationMode'))
+            level = int(self._get_option(connection, "IsolationMode"))
         except dbapi.InterfaceError:
             # caught access violation error
             # by default it's 0
             level = 0
         if level == 0:
-            return 'READ UNCOMMITTED'
+            return "READ UNCOMMITTED"
         elif level == 1:
-            return 'READ COMMITTED'
+            return "READ COMMITTED"
         elif level == 3:
-            return 'READ VERIFIED'
+            return "READ VERIFIED"
         return None
 
     def set_isolation_level(self, connection, level_str):
@@ -798,10 +807,10 @@ class IRISDialect(default.DefaultDialect):
             connection.setAutoCommit(True)
         else:
             connection.setAutoCommit(False)
-            if level_str not in ['READ COMMITTED', 'READ VERIFIED']:
-                level_str = 'READ UNCOMMITTED'
+            if level_str not in ["READ COMMITTED", "READ VERIFIED"]:
+                level_str = "READ UNCOMMITTED"
             with connection.cursor() as cursor:
-                cursor.execute('SET TRANSACTION ISOLATION LEVEL ' + level_str)
+                cursor.execute("SET TRANSACTION ISOLATION LEVEL " + level_str)
 
     @classmethod
     def dbapi(cls):
@@ -831,15 +840,20 @@ class IRISDialect(default.DefaultDialect):
 
     def create_connect_args(self, url):
         opts = {}
+
         opts["hostname"] = url.host
         opts["port"] = int(url.port) if url.port else 1972
-        opts["namespace"] = url.database if url.database else 'USER'
-        opts["username"] = url.username if url.username else ''
-        opts["password"] = url.password if url.password else ''
+        opts["namespace"] = url.database if url.database else "USER"
+        opts["username"] = url.username if url.username else ""
+        opts["password"] = url.password if url.password else ""
 
-        opts['autoCommit'] = False
+        opts["autoCommit"] = False
 
-        opts['embedded'] = self.embedded
+        opts["embedded"] = self.embedded
+        if "@" in opts["hostname"]:
+            _h = opts["hostname"].split("@")
+            opts["password"] += "@" + _h[0 : len(_h) - 1].join("@")
+            opts["hostname"] = _h[len(_h) - 1]
 
         return ([], opts)
 
@@ -848,6 +862,7 @@ class IRISDialect(default.DefaultDialect):
 
     def _debug(self, query, params, many=False):
         from decimal import Decimal
+
         if not self._debug_queries:
             return
         if many:
@@ -858,25 +873,25 @@ class IRISDialect(default.DefaultDialect):
             if isinstance(p, Decimal):
                 v = str(p)
             elif p is None:
-                v = 'NULL'
+                v = "NULL"
             else:
-                v = '%r' % (p, )
-            query = query.replace('?', v, 1)
-        print('--')
-        print(query + ';')
-        print('--')
+                v = "%r" % (p,)
+            query = query.replace("?", v, 1)
+        print("--")
+        print(query + ";")
+        print("--")
 
     def _debug_pre(self, query, params, many=False):
-        print('-- do_execute' + 'many' if many else '')
+        print("-- do_execute" + "many" if many else "")
         if not self._debug_queries:
             return
-        for line in query.split('\n'):
-            print('-- ', line)
+        for line in query.split("\n"):
+            print("-- ", line)
         if many:
             print(params)
         else:
             for p in params:
-                print('-- @param = %r' % (p, ))
+                print("-- @param = %r" % (p,))
 
     def do_execute(self, cursor, query, params, context=None):
         self._debug(query, params)
@@ -903,7 +918,7 @@ class IRISDialect(default.DefaultDialect):
 
     def get_schema(self, schema=None):
         if schema is None:
-            return 'SQLUser'
+            return "SQLUser"
         return schema
 
     @reflection.cache
@@ -937,13 +952,10 @@ class IRISDialect(default.DefaultDialect):
         tables = ischema.tables
         schema_name = self.get_schema(schema)
 
-        s = (
-            sql.select(func.count())
-            .where(
-                sql.and_(
-                    tables.c.table_schema == str(schema_name),
-                    tables.c.table_name == str(table_name),
-                )
+        s = sql.select(func.count()).where(
+            sql.and_(
+                tables.c.table_schema == str(schema_name),
+                tables.c.table_name == str(table_name),
             )
         )
         return bool(connection.execute(s).scalar())
@@ -962,31 +974,36 @@ class IRISDialect(default.DefaultDialect):
                 indexes.c.primary_key,
                 indexes.c.non_unique,
                 indexes.c.asc_or_desc,
-                index_def.c.Data,
             )
             .select_from(indexes)
-            .outerjoin(
-                index_def,
-                sql.and_(
-                    index_def.c.SqlName == indexes.c.index_name,
-                    index_def.c.parent ==
-                    sql.select(tables.c.classname)
-                    .where(
-                        indexes.c.table_name == tables.c.table_name,
-                        indexes.c.table_schema == tables.c.table_schema,
-                    ).scalar_subquery()
-                ),
-            )
             .where(
                 sql.and_(
                     indexes.c.table_schema == str(schema_name),
                     indexes.c.table_name == str(table_name),
                     indexes.c.primary_key == sql.false(),
-                    (indexes.c.non_unique == sql.true()) if not unique else (1 == 1)
+                    (indexes.c.non_unique == sql.true()) if not unique else (1 == 1),
                 )
             )
             .order_by(indexes.c.ordinal_position)
         )
+        if self._dictionary_access:
+            s = s.add_columns(
+                index_def.c.Data,
+            ).outerjoin(
+                index_def,
+                sql.and_(
+                    index_def.c.SqlName == indexes.c.index_name,
+                    index_def.c.parent
+                    == sql.select(tables.c.classname)
+                    .where(
+                        indexes.c.table_name == tables.c.table_name,
+                        indexes.c.table_schema == tables.c.table_schema,
+                    )
+                    .scalar_subquery(),
+                ),
+            )
+        else:
+            s = s.add_columns(None)
 
         rs = connection.execute(s)
 
@@ -1007,15 +1024,11 @@ class IRISDialect(default.DefaultDialect):
                 indexrec["column_names"] = []
                 indexrec["unique"] = not nuniq
 
-            indexrec["column_names"].append(
-                self.normalize_name(colname)
-            )
-            include = include.split(',') if include else []
+            indexrec["column_names"].append(self.normalize_name(colname))
+            include = include.split(",") if include else []
             indexrec["include_columns"] = include
             if include:
-                indexrec["dialect_options"] = {
-                    "iris_include": include
-                }
+                indexrec["dialect_options"] = {"iris_include": include}
 
         indexes = list(indexes.values())
         return indexes
@@ -1030,12 +1043,13 @@ class IRISDialect(default.DefaultDialect):
                 key_constraints.c.constraint_name,
                 key_constraints.c.column_name,
             )
-            .join(constraints,
-                  sql.and_(
-                      key_constraints.c.constraint_name == constraints.c.constraint_name,
-                      key_constraints.c.table_schema == constraints.c.table_schema,
-                  )
-                  )
+            .join(
+                constraints,
+                sql.and_(
+                    key_constraints.c.constraint_name == constraints.c.constraint_name,
+                    key_constraints.c.table_schema == constraints.c.table_schema,
+                ),
+            )
             .where(
                 sql.and_(
                     key_constraints.c.table_schema == str(schema_name),
@@ -1068,10 +1082,12 @@ class IRISDialect(default.DefaultDialect):
 
     @reflection.cache
     def get_unique_constraints(self, connection, table_name, schema=None, **kw):
-        indexes = self.get_indexes(
-            connection, table_name, schema, unique=True, **kw)
-        return [{'name': i['name'], 'column_names': i['column_names']}
-                for i in indexes if i['unique']]
+        indexes = self.get_indexes(connection, table_name, schema, unique=True, **kw)
+        return [
+            {"name": i["name"], "column_names": i["column_names"]}
+            for i in indexes
+            if i["unique"]
+        ]
 
     @reflection.cache
     def get_foreign_keys(self, connection, table_name, schema=None, **kw):
@@ -1094,17 +1110,22 @@ class IRISDialect(default.DefaultDialect):
             .join(
                 key_constraints,
                 sql.and_(
-                    key_constraints.c.table_schema == ref_constraints.c.constraint_schema,
-                    key_constraints.c.constraint_name == ref_constraints.c.constraint_name,
-                )
+                    key_constraints.c.table_schema
+                    == ref_constraints.c.constraint_schema,
+                    key_constraints.c.constraint_name
+                    == ref_constraints.c.constraint_name,
+                ),
             )
             .join(
                 key_constraints_ref,
                 sql.and_(
-                    key_constraints_ref.c.constraint_schema == ref_constraints.c.unique_constraint_schema,
-                    key_constraints_ref.c.constraint_name == ref_constraints.c.unique_constraint_name,
-                    key_constraints_ref.c.ordinal_position == key_constraints.c.ordinal_position,
-                )
+                    key_constraints_ref.c.constraint_schema
+                    == ref_constraints.c.unique_constraint_schema,
+                    key_constraints_ref.c.constraint_name
+                    == ref_constraints.c.unique_constraint_name,
+                    key_constraints_ref.c.ordinal_position
+                    == key_constraints.c.ordinal_position,
+                ),
             )
             .where(
                 sql.and_(
@@ -1154,7 +1175,7 @@ class IRISDialect(default.DefaultDialect):
 
             if not rec["referred_table"]:
                 rec["referred_table"] = rtbl
-                if rschema != 'SQLUser':
+                if rschema != "SQLUser":
                     rec["referred_schema"] = rschema
 
             local_cols, remote_cols = (
@@ -1192,27 +1213,29 @@ class IRISDialect(default.DefaultDialect):
                 columns.c.column_default,
                 columns.c.collation_name,
                 columns.c.auto_increment,
-                property.c.SqlComputeCode,
-                property.c.Calculated,
-                property.c.Transient,
-                # columns.c.description,
             )
             .select_from(columns)
-            .outerjoin(
-                property,
-                sql.and_(
-                    property.c.SqlFieldName == columns.c.column_name,
-                    property.c.parent ==
-                    sql.select(tables.c.classname)
-                    .where(
-                        columns.c.table_name == tables.c.table_name,
-                        columns.c.table_schema == tables.c.table_schema,
-                    ).scalar_subquery()
-                ),
-            )
             .where(whereclause)
             .order_by(columns.c.ordinal_position)
         )
+        if self._dictionary_access:
+            s = s.add_columns(
+                property.c.SqlComputeCode,
+                property.c.Calculated,
+                property.c.Transient,
+            ).outerjoin(
+                property,
+                sql.and_(
+                    property.c.SqlFieldName == columns.c.column_name,
+                    property.c.parent
+                    == sql.select(tables.c.classname)
+                    .where(
+                        columns.c.table_name == tables.c.table_name,
+                        columns.c.table_schema == tables.c.table_schema,
+                    )
+                    .scalar_subquery(),
+                ),
+            )
 
         c = connection.execution_options(future_result=True).execute(s)
 
@@ -1227,9 +1250,11 @@ class IRISDialect(default.DefaultDialect):
             default = row[columns.c.column_default]
             collation = row[columns.c.collation_name]
             autoincrement = row[columns.c.auto_increment]
-            sqlComputeCode = row[property.c.SqlComputeCode]
-            calculated = row[property.c.Calculated]
-            transient = row[property.c.Transient]
+            sqlComputeCode = calculated = transient = None
+            if self._dictionary_access:
+                sqlComputeCode = row[property.c.SqlComputeCode]
+                calculated = row[property.c.Calculated]
+                transient = row[property.c.Transient]
             # description = row[columns.c.description]
 
             coltype = self.ischema_names.get(type_, None)
@@ -1250,10 +1275,7 @@ class IRISDialect(default.DefaultDialect):
                 if collation:
                     kwargs["collation"] = collation
             if coltype is None:
-                util.warn(
-                    "Did not recognize type '%s' of column '%s'"
-                    % (type_, name)
-                )
+                util.warn("Did not recognize type '%s' of column '%s'" % (type_, name))
                 coltype = sqltypes.NULLTYPE
             else:
                 if issubclass(coltype, sqltypes.Numeric):
@@ -1272,12 +1294,12 @@ class IRISDialect(default.DefaultDialect):
                 "autoincrement": autoincrement,
                 # "comment": description,
             }
-            if sqlComputeCode and 'set {*} = ' in sqlComputeCode.lower():
+            if sqlComputeCode and "set {*} = " in sqlComputeCode.lower():
                 sqltext = sqlComputeCode
-                sqltext = sqltext.split(' = ')[1]
+                sqltext = sqltext.split(" = ")[1]
                 sqltext = re.sub(r"{(\b\w+\b)}", r"\g<1>", sqltext)
                 persisted = not calculated and not transient
-                cdict['computed'] = {
+                cdict["computed"] = {
                     "sqltext": sqltext,
                     "persisted": persisted,
                 }
@@ -1305,8 +1327,7 @@ class IRISDialect(default.DefaultDialect):
         views = ischema.views
 
         view_def = connection.execute(
-            sql.select(views.c.view_definition)
-            .where(
+            sql.select(views.c.view_definition).where(
                 views.c.table_schema == str(schema_name),
                 views.c.table_name == str(view_name),
             )
