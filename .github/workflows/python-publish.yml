@@ -15,16 +15,33 @@ on:
     branches: [main]
 
 jobs:
-  deploy:
-
+  test:
+    strategy:
+      matrix:
+        image: 
+          - intersystemsdc/iris-community:latest
+          - intersystemsdc/iris-community:preview
     runs-on: ubuntu-latest
+    env:
+      IMAGE: ${{ matrix.image }}
+    steps:
+    - uses: actions/checkout@v3
+    - run: docker pull $IMAGE
+    - name: Run Tests
+      env:
+        FOLDER: /home/irisowner/sqlalchemy-iris
+      run: | 
+        docker run -i --rm -v `pwd`:$FOLDER -w $FOLDER --entrypoint $FOLDER/test-in-docker.sh $IMAGE
 
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
     - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       if: github.event_name == 'push'
     - name: Set up Python
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         python-version: '3.x'
     - name: Install dependencies
