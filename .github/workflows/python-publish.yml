@@ -40,8 +40,15 @@ jobs:
         echo ::set-output name=version::$VERSION
         NAME="sqlalchemy_iris"-${VERSION}-py3-none-any
         echo ::set-output name=name::$NAME
-    - name: Build package
-      run: python -m build
+    - name: Install requirements
+      run: |
+        pip install -U pip setuptools
+        pip install -r requirements-dev.txt
+        pip install -r requirements-iris.txt
+        pip install -e .
+
+    - name: Build Python package
+      run: ./scripts/build-dist.sh
     - name: Publish package
       uses: pypa/gh-action-pypi-publish@release/v1.5
       with:
