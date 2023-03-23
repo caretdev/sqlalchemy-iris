@@ -1,7 +1,3 @@
-import sys
-sys.path.insert(1, '/home/irisowner/sqlalchemy')
-sys.path.insert(1, '/home/irisowner/intersystems-irispython')
-
 from sqlalchemy.dialects import registry
 import pytest
 
