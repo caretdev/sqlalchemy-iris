@@ -27,18 +27,18 @@ exit_on_error () {
 
 iris_start
 
-/usr/irissys/bin/irispython -m pip install SQLAlchemy~=1.4.47 --target /usr/irissys/mgr/python
+pip install -r requirements-dev.txt -r requirements-iris.txt
 exit_on_error
 
-/usr/irissys/bin/irispython -m pip install -r requirements-dev.txt -r requirements-iris.txt --target /usr/irissys/mgr/python
+pip install -e .
 exit_on_error
 
 # Test in Network mode
-/usr/irissys/bin/irispython -m pytest
+python3 -m pytest
 exit_on_error
 
 # Test in Embedded mode
-/usr/irissys/bin/irispython -m pytest --db irisemb
+python3 -m pytest --db irisemb
 exit_on_error
 
 iris_stop

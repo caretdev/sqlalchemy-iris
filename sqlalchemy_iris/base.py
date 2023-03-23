@@ -882,7 +882,7 @@ There are no access to %Dictionary, may be required for some advanced features,
         return ([], opts)
 
     _debug_queries = False
-    _debug_queries = True
+    # _debug_queries = True
 
     def _debug(self, query, params, many=False):
         from decimal import Decimal
