@@ -17,6 +17,7 @@ on:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         image: 
           - intersystemsdc/iris-community:latest
@@ -31,7 +32,8 @@ jobs:
       env:
         FOLDER: /home/irisowner/sqlalchemy-iris
       run: | 
-        docker run -i --rm -v `pwd`:$FOLDER -w $FOLDER --entrypoint $FOLDER/test-in-docker.sh $IMAGE
+        docker build --build-arg BASE=$IMAGE -t sqlalchemy-iris
+        docker run -i --rm sqlalchemy-iris
 
   deploy:
     needs: test

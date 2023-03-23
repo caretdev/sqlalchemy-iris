@@ -25,17 +25,7 @@ exit_on_error () {
   fi
 }
 
-mkdir sqlalchemy_iris.egg-info
-
-ls -la 
-
 iris_start
-
-pip install -r requirements-dev.txt -r requirements-iris.txt
-exit_on_error
-
-pip install -e .
-exit_on_error
 
 # Test in Network mode
 python3 -m pytest
