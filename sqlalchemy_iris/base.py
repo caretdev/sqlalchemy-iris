@@ -526,6 +526,30 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         # InterSystems use own format for %MATCHES, it does not support Regular Expressions
         raise exc.CompileError("InterSystems IRIS does not support REGEXP")
 
+    def visit_case(self, clause, **kwargs):
+        x = "CASE "
+        if clause.value is not None:
+            x += clause.value._compiler_dispatch(self, **kwargs) + " "
+        for cond, result in clause.whens:
+            x += (
+                "WHEN "
+                + cond._compiler_dispatch(self, **kwargs)
+                + " THEN "
+                # Explicit CAST required on 2023.1
+                + (self.visit_cast(sql.cast(result, result.type), **kwargs)
+                    if isinstance(result, sql.elements.BindParameter) else result._compiler_dispatch(self, **kwargs))
+                + " "
+            )
+        if clause.else_ is not None:
+            x += (
+                "ELSE " 
+                + (self.visit_cast(sql.cast(clause.else_, clause.else_.type), **kwargs)
+                    if isinstance(clause.else_, sql.elements.BindParameter) else clause.else_._compiler_dispatch(self, **kwargs))
+                + " "
+            )
+        x += "END"
+        return x
+
 
 class IRISDDLCompiler(sql.compiler.DDLCompiler):
     """IRIS syntactic idiosyncrasies"""
@@ -850,15 +874,15 @@ There are no access to %Dictionary, may be required for some advanced features,
         opts["autoCommit"] = False
 
         opts["embedded"] = self.embedded
-        if "@" in opts["hostname"]:
+        if opts["hostname"] and "@" in opts["hostname"]:
             _h = opts["hostname"].split("@")
-            opts["password"] += "@" + _h[0 : len(_h) - 1].join("@")
+            opts["password"] += "@" + _h[0: len(_h) - 1].join("@")
             opts["hostname"] = _h[len(_h) - 1]
 
         return ([], opts)
 
     _debug_queries = False
-    # _debug_queries = True
+    _debug_queries = True
 
     def _debug(self, query, params, many=False):
         from decimal import Decimal
