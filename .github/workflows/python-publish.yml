@@ -60,7 +60,6 @@ jobs:
     - name: Install requirements
       run: |
         pip install -U pip setuptools
-        pip install sqlalchemy
         pip install -r requirements-dev.txt
         pip install -r requirements-iris.txt
         pip install -e .
