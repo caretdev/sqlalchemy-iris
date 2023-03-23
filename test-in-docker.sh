@@ -28,11 +28,11 @@ exit_on_error () {
 iris_start
 
 # Test in Network mode
-python3 -m pytest
+/usr/irissys/bin/irispython -m pytest
 exit_on_error
 
 # Test in Embedded mode
-python3 -m pytest --db irisemb
+/usr/irissys/bin/irispython -m pytest --db irisemb
 exit_on_error
 
 iris_stop
