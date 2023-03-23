@@ -37,9 +37,9 @@ jobs:
         sed -ie "s/version = .*/version = $VERSION/" setup.cfg
         python -m pip install --upgrade pip
         pip install build
-        echo version::$VERSION >> $GITHUB_OUTPUT
+        echo version=$VERSION >> $GITHUB_OUTPUT
         NAME="sqlalchemy_iris"-${VERSION}-py3-none-any
-        echo name::$NAME >> $GITHUB_OUTPUT
+        echo name=$NAME >> $GITHUB_OUTPUT
     - name: Install requirements
       run: |
         pip install -U pip setuptools
@@ -50,7 +50,7 @@ jobs:
     - name: Build Python package
       run: ./scripts/build-dist.sh
     - name: Publish package
-      uses: pypa/gh-action-pypi-publish@release/v1.5
+      uses: pypa/gh-action-pypi-publish@release/v1
       with:
         user: __token__
         password: ${{ secrets.PYPI_API_TOKEN }}
