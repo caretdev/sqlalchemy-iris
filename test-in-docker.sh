@@ -27,7 +27,7 @@ exit_on_error () {
 
 iris_start
 
-/usr/irissys/bin/irispython -e . --target /usr/irissys/mgr/python
+/usr/irissys/bin/irispython -m pip -e . --target /usr/irissys/mgr/python
 exit_on_error
 
 /usr/irissys/bin/irispython -m pip install -r requirements-dev.txt -r requirements-iris.txt --target /usr/irissys/mgr/python
