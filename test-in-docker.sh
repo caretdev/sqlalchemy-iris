@@ -25,6 +25,10 @@ exit_on_error () {
   fi
 }
 
+mkdir sqlalchemy_iris.egg-info
+
+ls -la 
+
 iris_start
 
 pip install -r requirements-dev.txt -r requirements-iris.txt
