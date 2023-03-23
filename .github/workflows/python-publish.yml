@@ -20,11 +20,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       if: github.event_name == 'push'
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
         python-version: '3.x'
     - name: Install dependencies
@@ -37,9 +37,9 @@ jobs:
         sed -ie "s/version = .*/version = $VERSION/" setup.cfg
         python -m pip install --upgrade pip
         pip install build
-        echo ::set-output name=version::$VERSION
+        echo version::$VERSION >> $GITHUB_OUTPUT
         NAME="sqlalchemy_iris"-${VERSION}-py3-none-any
-        echo ::set-output name=name::$NAME
+        echo name::$NAME >> $GITHUB_OUTPUT
     - name: Install requirements
       run: |
         pip install -U pip setuptools
@@ -57,24 +57,12 @@ jobs:
     - name: Create Beta Release
       id: create_release
       if: github.event_name == 'push'
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ steps.set-version.outputs.version }}
-        release_name: ${{ steps.set-version.outputs.version }}
+        tag_name: v${{ steps.set-version.outputs.version }}
         prerelease: ${{ github.event_name != 'release' }}
-    - name: Upload Release Asset
-      id: upload-release-asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event_name == 'release' && github.event.release.upload_url || steps.create_release.outputs.upload_url }}
-        asset_path: dist/${{ steps.set-version.outputs.name }}.whl
-        asset_name: ${{ steps.set-version.outputs.name }}.whl
-        asset_content_type: application/zip
-    - uses: actions/checkout@v2
+        files: dist/${{ steps.set-version.outputs.name }}.whl
+    - uses: actions/checkout@v3
       if: github.event_name == 'release'
       with:
         ref: main
