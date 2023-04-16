@@ -814,7 +814,7 @@ There are no access to %Dictionary, may be required for some advanced features,
     def get_isolation_level(self, connection):
         try:
             level = int(self._get_option(connection, "IsolationMode"))
-        except dbapi.InterfaceError:
+        except dbapi.DatabaseError:
             # caught access violation error
             # by default it's 0
             level = 0
