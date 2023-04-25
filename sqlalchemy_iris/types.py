@@ -120,3 +120,23 @@ class IRISTime(sqltypes.DateTime):
             return value
 
         return process
+
+
+class BIT(sqltypes.TypeEngine):
+    __visit_name__ = "BIT"
+
+
+class TINYINT(sqltypes.Integer):
+    __visit_name__ = "TINYINT"
+
+
+class DOUBLE(sqltypes.Float):
+    __visit_name__ = "DOUBLE"
+
+
+class LONGVARCHAR(sqltypes.VARCHAR):
+    __visit_name__ = "LONGVARCHAR"
+
+
+class LONGVARBINARY(sqltypes.VARBINARY):
+    __visit_name__ = "LONGVARBINARY"

@@ -1,7 +1,6 @@
 import re
 import intersystems_iris.dbapi._DBAPI as dbapi
 from . import information_schema as ischema
-from . import types
 from sqlalchemy import exc
 from sqlalchemy.orm import aliased
 from sqlalchemy.engine import default
@@ -20,32 +19,42 @@ from sqlalchemy import types as sqltypes
 from sqlalchemy.types import BIGINT
 from sqlalchemy.types import VARCHAR
 from sqlalchemy.types import INTEGER
-from sqlalchemy.types import BOOLEAN
 from sqlalchemy.types import DATE
 from sqlalchemy.types import TIMESTAMP
 from sqlalchemy.types import TIME
 from sqlalchemy.types import NUMERIC
-from sqlalchemy.types import FLOAT
 from sqlalchemy.types import BINARY
 from sqlalchemy.types import VARBINARY
 from sqlalchemy.types import TEXT
 from sqlalchemy.types import SMALLINT
 
+from .types import BIT
+from .types import DOUBLE
+from .types import LONGVARCHAR
+from .types import LONGVARBINARY
+from .types import TINYINT
+
+from .types import IRISBoolean
+from .types import IRISTime
+from .types import IRISTimeStamp
+from .types import IRISDate
+from .types import IRISDateTime
+
 ischema_names = {
     "BIGINT": BIGINT,
-    "VARCHAR": VARCHAR,
-    "INTEGER": INTEGER,
-    "BIT": BOOLEAN,
+    "BIT": BIT,
     "DATE": DATE,
-    "TIMESTAMP": TIMESTAMP,
+    "DOUBLE": DOUBLE,
+    "INTEGER": INTEGER,
+    "LONGVARBINARY": LONGVARBINARY,
+    "LONGVARCHAR": LONGVARCHAR,
     "NUMERIC": NUMERIC,
-    "DOUBLE": FLOAT,
-    "VARBINARY": BINARY,
-    "LONGVARCHAR": TEXT,
-    "LONGVARBINARY": VARBINARY,
-    "TIME": TIME,
     "SMALLINT": SMALLINT,
-    "TINYINT": SMALLINT,
+    "TIME": TIME,
+    "TIMESTAMP": TIMESTAMP,
+    "TINYINT": TINYINT,
+    "VARBINARY": VARBINARY,
+    "VARCHAR": VARCHAR,
 }
 
 RESERVED_WORDS = set(
@@ -646,7 +655,13 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
 
 class IRISTypeCompiler(compiler.GenericTypeCompiler):
     def visit_boolean(self, type_, **kw):
+        return self.visit_BIT(type_)
+
+    def visit_BIT(self, type_, **kw):
         return "BIT"
+
+    def visit_TEXT(self, type_, **kw):
+        return "VARCHAR(65535)"
 
 
 class IRISIdentifierPreparer(sql.compiler.IdentifierPreparer):
@@ -699,11 +714,11 @@ class IRISExecutionContext(default.DefaultExecutionContext):
 
 
 colspecs = {
-    sqltypes.Boolean: types.IRISBoolean,
-    sqltypes.Date: types.IRISDate,
-    sqltypes.DateTime: types.IRISDateTime,
-    sqltypes.TIMESTAMP: types.IRISTimeStamp,
-    sqltypes.Time: types.IRISTime,
+    sqltypes.Boolean: IRISBoolean,
+    sqltypes.Date: IRISDate,
+    sqltypes.DateTime: IRISDateTime,
+    sqltypes.TIMESTAMP: IRISTimeStamp,
+    sqltypes.Time: IRISTime,
 }
 
 
