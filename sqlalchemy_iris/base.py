@@ -654,7 +654,7 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
 
 
 class IRISTypeCompiler(compiler.GenericTypeCompiler):
-    def visit_boolean(self, type_, **kw):
+    def visit_BOOLEAN(self, type_, **kw):
         return self.visit_BIT(type_)
 
     def visit_BIT(self, type_, **kw):
