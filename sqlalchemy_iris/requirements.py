@@ -5,6 +5,14 @@ from sqlalchemy.testing import exclusions
 
 class Requirements(SuiteRequirements):
     @property
+    def array_type(self):
+        return exclusions.closed()
+
+    @property
+    def uuid_data_type(self):
+        return exclusions.closed()
+
+    @property
     def check_constraints(self):
         """Target database must support check constraints."""
 
@@ -214,3 +222,20 @@ class Requirements(SuiteRequirements):
         """backend supports the regexp_match operator."""
         # InterSystems use own format for %MATCHES and %PATTERN, it does not support Regular Expressions
         return exclusions.closed()
+
+    @property
+    def unique_constraints_reflect_as_index(self):
+        """Target database reflects unique constraints as indexes."""
+
+        return exclusions.open()
+
+    @property
+    def temp_table_names(self):
+        """target dialect supports listing of temporary table names"""
+        return exclusions.open()
+
+    @property
+    def unique_index_reflect_as_unique_constraints(self):
+        """Target database reflects unique indexes as unique constrains."""
+
+        return exclusions.open()

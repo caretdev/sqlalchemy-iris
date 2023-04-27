@@ -16,6 +16,53 @@ from sqlalchemy import sql, text
 from sqlalchemy import util
 from sqlalchemy import types as sqltypes
 
+from sqlalchemy import __version__ as sqlalchemy_version
+
+if sqlalchemy_version.startswith("2."):
+    from sqlalchemy.engine import ObjectKind
+    from sqlalchemy.engine import ObjectScope
+    from sqlalchemy.engine.reflection import ReflectionDefaults
+else:
+    from enum import Flag
+
+    class ObjectKind(Flag):
+        TABLE = 1
+        VIEW = 2
+        ANY = TABLE | VIEW
+
+    class ObjectScope(Flag):
+        DEFAULT = 1
+        TEMPORARY = 2
+        ANY = DEFAULT | TEMPORARY
+
+    class ReflectionDefaults:
+        @classmethod
+        def columns(cls):
+            return []
+
+        @classmethod
+        def pk_constraint(cls):
+            return {
+                "name": None,
+                "constrained_columns": [],
+            }
+
+        @classmethod
+        def foreign_keys(cls):
+            return []
+
+        @classmethod
+        def indexes(cls):
+            return []
+
+        @classmethod
+        def unique_constraints(cls):
+            return []
+
+        @classmethod
+        def check_constraints(cls):
+            return []
+
 from sqlalchemy.types import BIGINT
 from sqlalchemy.types import VARCHAR
 from sqlalchemy.types import INTEGER
@@ -350,7 +397,7 @@ class IRISCompiler(sql.compiler.SQLCompiler):
     def fetch_clause(self, select, **kw):
         return ""
 
-    def visit_empty_set_expr(self, type_):
+    def visit_empty_set_expr(self, type_, **kw):
         return "SELECT 1 WHERE 1!=1"
 
     def _get_limit_or_fetch(self, select):
@@ -512,8 +559,8 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         )
         if within_columns_clause:
             return text
-        if isinstance(column.type, sqltypes.Text):
-            text = "CONVERT(VARCHAR, %s)" % (text,)
+        # if isinstance(column.type, sqltypes.Text):
+        #     text = "CONVERT(VARCHAR, %s)" % (text,)
         return text
 
     def visit_concat_op_binary(self, binary, operator, **kw):
@@ -545,15 +592,21 @@ class IRISCompiler(sql.compiler.SQLCompiler):
                 + cond._compiler_dispatch(self, **kwargs)
                 + " THEN "
                 # Explicit CAST required on 2023.1
-                + (self.visit_cast(sql.cast(result, result.type), **kwargs)
-                    if isinstance(result, sql.elements.BindParameter) else result._compiler_dispatch(self, **kwargs))
+                + (
+                    self.visit_cast(sql.cast(result, result.type), **kwargs)
+                    if isinstance(result, sql.elements.BindParameter)
+                    else result._compiler_dispatch(self, **kwargs)
+                )
                 + " "
             )
         if clause.else_ is not None:
             x += (
-                "ELSE " 
-                + (self.visit_cast(sql.cast(clause.else_, clause.else_.type), **kwargs)
-                    if isinstance(clause.else_, sql.elements.BindParameter) else clause.else_._compiler_dispatch(self, **kwargs))
+                "ELSE "
+                + (
+                    self.visit_cast(sql.cast(clause.else_, clause.else_.type), **kwargs)
+                    if isinstance(clause.else_, sql.elements.BindParameter)
+                    else clause.else_._compiler_dispatch(self, **kwargs)
+                )
                 + " "
             )
         x += "END"
@@ -642,7 +695,7 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
         includeclause = index.dialect_options["iris"]["include"]
         if includeclause:
             inclusions = [
-                index.table.c[col] if isinstance(col, util.string_types) else col
+                index.table.c[col] if isinstance(col, str) else col
                 for col in includeclause
             ]
 
@@ -651,6 +704,12 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
             )
 
         return text
+
+    def visit_drop_index(self, drop, **kw):
+        return "DROP INDEX %s ON %s" % (
+            self._prepared_index_name(drop.element, include_schema=False),
+            self.preparer.format_table(drop.element.table),
+        )
 
 
 class IRISTypeCompiler(compiler.GenericTypeCompiler):
@@ -752,6 +811,8 @@ class IRISDialect(default.DefaultDialect):
     supports_multivalues_insert = True
 
     supports_sequences = False
+
+    div_is_floordiv = False
 
     postfetch_lastrowid = True
     supports_simple_order_by_label = False
@@ -891,7 +952,7 @@ There are no access to %Dictionary, may be required for some advanced features,
         opts["embedded"] = self.embedded
         if opts["hostname"] and "@" in opts["hostname"]:
             _h = opts["hostname"].split("@")
-            opts["password"] += "@" + _h[0: len(_h) - 1].join("@")
+            opts["password"] += "@" + _h[0 : len(_h) - 1].join("@")
             opts["hostname"] = _h[len(_h) - 1]
 
         return ([], opts)
@@ -986,6 +1047,22 @@ There are no access to %Dictionary, may be required for some advanced features,
         return table_names
 
     @reflection.cache
+    def get_temp_table_names(self, connection, dblink=None, **kw):
+        tables = ischema.tables
+        s = (
+            sql.select(tables.c.table_name)
+            .where(
+                sql.and_(
+                    tables.c.table_schema == self.default_schema_name,
+                    tables.c.table_type == "GLOBAL TEMPORARY",
+                )
+            )
+            .order_by(tables.c.table_name)
+        )
+        table_names = [r[0] for r in connection.execute(s)]
+        return table_names
+
+    @reflection.cache
     def has_table(self, connection, table_name, schema=None, **kw):
         self._ensure_has_table_connection(connection)
         tables = ischema.tables
@@ -999,15 +1076,75 @@ There are no access to %Dictionary, may be required for some advanced features,
         )
         return bool(connection.execute(s).scalar())
 
+    def _default_or_error(self, connection, tablename, schema, method, **kw):
+        if self.has_table(connection, tablename, schema, **kw):
+            return method()
+        else:
+            raise exc.NoSuchTableError(f"{schema}.{tablename}")
+
+    def _get_all_objects(self, connection, schema, filter_names, scope, kind, **kw):
+        self._ensure_has_table_connection(connection)
+        tables = ischema.tables
+        schema_name = self.get_schema(schema)
+
+        s = (
+            sql.select(
+                tables.c.table_name,
+            )
+            .select_from(tables)
+            .where(
+                tables.c.table_schema == str(schema_name),
+            )
+        )
+
+        table_types = []
+        if ObjectScope.TEMPORARY in scope and ObjectKind.TABLE in kind:
+            table_types.append("GLOBAL TEMPORARY")
+        if ObjectScope.DEFAULT in scope and ObjectKind.VIEW in kind:
+            table_types.append("VIEW")
+        if ObjectScope.DEFAULT in scope and ObjectKind.TABLE in kind:
+            table_types.append("BASE TABLE")
+
+        if not table_types:
+            return []
+        s = s.where(tables.c.table_type.in_(table_types))
+
+        if filter_names:
+            s = s.where(tables.c.table_name.in_([str(name) for name in filter_names]))
+
+        result = connection.execute(s).scalars()
+        return result.all()
+
     @reflection.cache
     def get_indexes(self, connection, table_name, schema=None, unique=False, **kw):
+        data = self.get_multi_indexes(
+            connection,
+            schema=schema,
+            filter_names=[table_name],
+            scope=ObjectScope.ANY,
+            kind=ObjectKind.ANY,
+            unique=unique,
+            **kw,
+        )
+        return self._value_or_raise(data, table_name, schema)
+
+    def get_multi_indexes(
+        self, connection, schema, filter_names, scope, kind, unique=False, **kw
+    ):
         schema_name = self.get_schema(schema)
         indexes = ischema.indexes
         tables = ischema.tables
         index_def = ischema.index_definition
 
+        all_objects = self._get_all_objects(
+            connection, schema, filter_names, scope, kind
+        )
+        if not all_objects:
+            return util.defaultdict(list)
+
         s = (
             sql.select(
+                indexes.c.table_name,
                 indexes.c.index_name,
                 indexes.c.column_name,
                 indexes.c.primary_key,
@@ -1018,13 +1155,19 @@ There are no access to %Dictionary, may be required for some advanced features,
             .where(
                 sql.and_(
                     indexes.c.table_schema == str(schema_name),
-                    indexes.c.table_name == str(table_name),
+                    indexes.c.table_name.in_(all_objects),
                     indexes.c.primary_key == sql.false(),
-                    (indexes.c.non_unique == sql.true()) if not unique else (1 == 1),
                 )
             )
-            .order_by(indexes.c.ordinal_position)
+            .order_by(
+                indexes.c.table_name,
+                indexes.c.index_name,
+                indexes.c.ordinal_position,
+            )
         )
+        if unique:
+            s = s.where(indexes.c.non_unique != sql.true())
+
         if self._dictionary_access:
             s = s.add_columns(
                 index_def.c.Data,
@@ -1046,9 +1189,16 @@ There are no access to %Dictionary, may be required for some advanced features,
 
         rs = connection.execute(s)
 
+        flat_indexes = util.defaultdict(dict)
+        default = ReflectionDefaults.indexes
+
         indexes = util.defaultdict(dict)
+        for table_name in all_objects:
+            indexes[(schema, table_name)] = default()
+
         for row in rs:
             (
+                idxtable,
                 idxname,
                 colname,
                 _,
@@ -1057,28 +1207,65 @@ There are no access to %Dictionary, may be required for some advanced features,
                 include,
             ) = row
 
-            indexrec = indexes[idxname]
+            if (schema, idxtable) not in indexes:
+                continue
+
+            indexrec = flat_indexes[(schema, idxtable, idxname)]
             if "name" not in indexrec:
                 indexrec["name"] = self.normalize_name(idxname)
                 indexrec["column_names"] = []
-                indexrec["unique"] = not nuniq
+                if not unique:
+                    indexrec["unique"] = not nuniq
+                else:
+                    indexrec["duplicates_index"] = idxname
 
             indexrec["column_names"].append(self.normalize_name(colname))
             include = include.split(",") if include else []
-            indexrec["include_columns"] = include
+            if not unique or include:
+                indexrec["include_columns"] = include
             if include:
                 indexrec["dialect_options"] = {"iris_include": include}
 
-        indexes = list(indexes.values())
+        for schema, idxtable, idxname in flat_indexes:
+            indexes[(schema, idxtable)].append(
+                flat_indexes[(schema, idxtable, idxname)]
+            )
+
         return indexes
 
     def get_pk_constraint(self, connection, table_name, schema=None, **kw):
+        data = self.get_multi_pk_constraint(
+            connection,
+            schema,
+            filter_names=[table_name],
+            scope=ObjectScope.ANY,
+            kind=ObjectKind.ANY,
+            **kw,
+        )
+        return self._value_or_raise(data, table_name, schema)
+
+    def get_multi_pk_constraint(
+        self,
+        connection,
+        schema,
+        filter_names,
+        scope,
+        kind,
+        **kw,
+    ):
         schema_name = self.get_schema(schema)
         key_constraints = ischema.key_constraints
         constraints = ischema.constraints
 
+        all_objects = self._get_all_objects(
+            connection, schema, filter_names, scope, kind
+        )
+        if not all_objects:
+            return util.defaultdict(list)
+
         s = (
             sql.select(
+                key_constraints.c.table_name,
                 key_constraints.c.constraint_name,
                 key_constraints.c.column_name,
             )
@@ -1092,51 +1279,114 @@ There are no access to %Dictionary, may be required for some advanced features,
             .where(
                 sql.and_(
                     key_constraints.c.table_schema == str(schema_name),
-                    key_constraints.c.table_name == str(table_name),
+                    key_constraints.c.table_name.in_(all_objects),
                     constraints.c.constraint_type == "PRIMARY KEY",
                 )
             )
-            .order_by(key_constraints.c.ordinal_position)
+            .order_by(
+                key_constraints.c.table_name,
+                key_constraints.c.constraint_name,
+                key_constraints.c.ordinal_position,
+            )
         )
 
         rs = connection.execute(s)
 
+        primary_keys = util.defaultdict(dict)
+        default = ReflectionDefaults.pk_constraint
+
         constraint_name = None
-        pkfields = []
         for row in rs:
             (
+                table_name,
                 name,
                 colname,
             ) = row
             constraint_name = self.normalize_name(name)
-            pkfields.append(self.normalize_name(colname))
 
-        if pkfields:
-            return {
-                "constrained_columns": pkfields,
-                "name": constraint_name,
-            }
+            table_pk = primary_keys[(schema, table_name)]
+            if not table_pk:
+                table_pk["name"] = constraint_name
+                table_pk["constrained_columns"] = [colname]
+            else:
+                table_pk["constrained_columns"].append(colname)
 
-        return None
+        return (
+            (key, primary_keys[key] if key in primary_keys else default())
+            for key in (
+                (schema, self.normalize_name(obj_name)) for obj_name in all_objects
+            )
+        )
+
+    def _value_or_raise(self, data, table, schema):
+        table = self.normalize_name(str(table))
+        try:
+            return dict(data)[(schema, table)]
+        except KeyError:
+            raise exc.NoSuchTableError(
+                f"{schema}.{table}" if schema else table
+            ) from None
 
     @reflection.cache
     def get_unique_constraints(self, connection, table_name, schema=None, **kw):
-        indexes = self.get_indexes(connection, table_name, schema, unique=True, **kw)
-        return [
-            {"name": i["name"], "column_names": i["column_names"]}
-            for i in indexes
-            if i["unique"]
-        ]
+        data = self.get_multi_unique_constraints(
+            connection,
+            schema=schema,
+            filter_names=[table_name],
+            scope=ObjectScope.ANY,
+            kind=ObjectKind.ANY,
+            **kw,
+        )
+        return self._value_or_raise(data, table_name, schema)
+
+    def get_multi_unique_constraints(
+        self,
+        connection,
+        schema,
+        filter_names,
+        scope,
+        kind,
+        **kw,
+    ):
+        return self.get_multi_indexes(
+            connection, schema, filter_names, scope, kind, unique=True, **kw
+        )
 
     @reflection.cache
     def get_foreign_keys(self, connection, table_name, schema=None, **kw):
+        data = self.get_multi_foreign_keys(
+            connection,
+            schema,
+            filter_names=[table_name],
+            scope=ObjectScope.ANY,
+            kind=ObjectKind.ANY,
+            **kw,
+        )
+        return self._value_or_raise(data, table_name, schema)
+
+    def get_multi_foreign_keys(
+        self,
+        connection,
+        schema,
+        filter_names,
+        scope,
+        kind,
+        **kw,
+    ):
         schema_name = self.get_schema(schema)
         ref_constraints = ischema.ref_constraints
         key_constraints = ischema.key_constraints
         key_constraints_ref = aliased(ischema.key_constraints)
 
+        all_objects = self._get_all_objects(
+            connection, schema, filter_names, scope, kind
+        )
+        if not all_objects:
+            return util.defaultdict(list)
+
         s = (
             sql.select(
+                key_constraints.c.table_name,
                 key_constraints.c.constraint_name,
                 key_constraints.c.column_name,
                 key_constraints_ref.c.table_schema,
@@ -1169,30 +1419,22 @@ There are no access to %Dictionary, may be required for some advanced features,
             .where(
                 sql.and_(
                     key_constraints.c.table_schema == str(schema_name),
-                    key_constraints.c.table_name == str(table_name),
+                    key_constraints.c.table_name.in_(all_objects),
                 )
             )
-            .order_by(key_constraints_ref.c.ordinal_position)
+            .order_by(
+                key_constraints.c.constraint_name,
+                key_constraints.c.ordinal_position,
+            )
         )
 
         rs = connection.execute(s)
 
-        fkeys = []
-
-        def fkey_rec():
-            return {
-                "name": None,
-                "constrained_columns": [],
-                "referred_schema": None,
-                "referred_table": None,
-                "referred_columns": [],
-                "options": {},
-            }
-
-        fkeys = util.defaultdict(fkey_rec)
+        fkeys = util.defaultdict(dict)
 
         for row in rs:
             (
+                table_name,
                 rfknm,
                 scol,
                 rschema,
@@ -1203,46 +1445,74 @@ There are no access to %Dictionary, may be required for some advanced features,
                 fkdelrule,
             ) = row
 
-            rec = fkeys[rfknm]
-            rec["name"] = rfknm
+            table_fkey = fkeys[(schema, table_name)]
+
+            if rfknm not in table_fkey:
+                table_fkey[rfknm] = fkey = {
+                    "name": rfknm,
+                    "constrained_columns": [],
+                    "referred_schema": rschema
+                    if rschema != self.default_schema_name
+                    else None,
+                    "referred_table": rtbl,
+                    "referred_columns": [],
+                    "options": {},
+                }
+            else:
+                fkey = table_fkey[rfknm]
 
             if fkuprule != "NO ACTION":
-                rec["options"]["onupdate"] = fkuprule
+                fkey["options"]["onupdate"] = fkuprule
 
             if fkdelrule != "NO ACTION":
-                rec["options"]["ondelete"] = fkdelrule
+                fkey["options"]["ondelete"] = fkdelrule
 
-            if not rec["referred_table"]:
-                rec["referred_table"] = rtbl
-                if rschema != "SQLUser":
-                    rec["referred_schema"] = rschema
+            fkey["constrained_columns"].append(scol)
+            fkey["referred_columns"].append(rcol)
 
-            local_cols, remote_cols = (
-                rec["constrained_columns"],
-                rec["referred_columns"],
+        default = ReflectionDefaults.foreign_keys
+
+        return (
+            (key, list(fkeys[key].values()) if key in fkeys else default())
+            for key in (
+                (schema, self.normalize_name(obj_name)) for obj_name in all_objects
             )
-
-            local_cols.append(scol)
-            remote_cols.append(rcol)
-
-        if fkeys:
-            return list(fkeys.values())
-
-        return []
+        )
 
     def get_columns(self, connection, table_name, schema=None, **kw):
+        data = self.get_multi_columns(
+            connection,
+            schema,
+            filter_names=[table_name],
+            scope=ObjectScope.ANY,
+            kind=ObjectKind.ANY,
+            **kw,
+        )
+        return self._value_or_raise(data, table_name, schema)
+
+    def get_multi_columns(
+        self,
+        connection,
+        schema,
+        filter_names,
+        scope,
+        kind,
+        **kw,
+    ):
         schema_name = self.get_schema(schema)
         tables = ischema.tables
         columns = ischema.columns
         property = ischema.property_definition
 
-        whereclause = sql.and_(
-            columns.c.table_name == str(table_name),
-            columns.c.table_schema == str(schema_name),
+        all_objects = self._get_all_objects(
+            connection, schema, filter_names, scope, kind
         )
+        if not all_objects:
+            return util.defaultdict(list)
 
         s = (
             sql.select(
+                columns.c.table_name,
                 columns.c.column_name,
                 columns.c.data_type,
                 columns.c.is_nullable,
@@ -1254,9 +1524,14 @@ There are no access to %Dictionary, may be required for some advanced features,
                 columns.c.auto_increment,
             )
             .select_from(columns)
-            .where(whereclause)
+            .where(
+                columns.c.table_schema == str(schema_name),
+            )
             .order_by(columns.c.ordinal_position)
         )
+        if all_objects:
+            s = s.where(columns.c.table_name.in_(all_objects))
+
         if self._dictionary_access:
             s = s.add_columns(
                 property.c.SqlComputeCode,
@@ -1278,8 +1553,10 @@ There are no access to %Dictionary, may be required for some advanced features,
 
         c = connection.execution_options(future_result=True).execute(s)
 
-        cols = []
+        cols = util.defaultdict(list)
+
         for row in c.mappings():
+            table_name = row[columns.c.table_name]
             name = row[columns.c.column_name]
             type_ = row[columns.c.data_type].upper()
             nullable = row[columns.c.is_nullable]
@@ -1342,7 +1619,7 @@ There are no access to %Dictionary, may be required for some advanced features,
                     "sqltext": sqltext,
                     "persisted": persisted,
                 }
-            cols.append(cdict)
+            cols[(schema, table_name)].append(cdict)
 
         return cols
 
@@ -1374,4 +1651,4 @@ There are no access to %Dictionary, may be required for some advanced features,
 
         if view_def:
             return view_def
-        return None
+        raise exc.NoSuchTableError(f"{schema}.{view_name}")
