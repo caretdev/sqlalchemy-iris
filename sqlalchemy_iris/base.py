@@ -63,8 +63,10 @@ else:
         def check_constraints(cls):
             return []
 
+
 from sqlalchemy.types import BIGINT
 from sqlalchemy.types import VARCHAR
+from sqlalchemy.types import CHAR
 from sqlalchemy.types import INTEGER
 from sqlalchemy.types import DATE
 from sqlalchemy.types import TIMESTAMP
@@ -86,6 +88,7 @@ from .types import IRISTime
 from .types import IRISTimeStamp
 from .types import IRISDate
 from .types import IRISDateTime
+
 
 ischema_names = {
     "BIGINT": BIGINT,
@@ -634,7 +637,7 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
         text = self.sql_compiler.process(
             generated.sqltext, include_table=True, literal_binds=True
         )
-        text = re.sub(r"(?<!')(\b[^\d]\w+\b)", r"{\g<1>}", text)
+        text = re.sub(r"(?<!')(\b[^\W\d]+\w+\b)", r"{\g<1>}", text)
         # text = text.replace("'", '"')
         text = "COMPUTECODE {Set {*} = %s}" % (text,)
         if generated.persisted is False:
@@ -721,6 +724,12 @@ class IRISTypeCompiler(compiler.GenericTypeCompiler):
 
     def visit_TEXT(self, type_, **kw):
         return "VARCHAR(65535)"
+
+    def visit_LONGVARBINARY(self, type_, **kw):
+        return "LONGVARBINARY"
+
+    def visit_DOUBLE(self, type_, **kw):
+        return "DOUBLE"
 
 
 class IRISIdentifierPreparer(sql.compiler.IdentifierPreparer):
@@ -1428,22 +1437,20 @@ There are no access to %Dictionary, may be required for some advanced features,
             )
         )
 
-        rs = connection.execute(s)
+        rs = connection.execution_options(future_result=True).execute(s)
 
         fkeys = util.defaultdict(dict)
 
-        for row in rs:
-            (
-                table_name,
-                rfknm,
-                scol,
-                rschema,
-                rtbl,
-                rcol,
-                _,  # match rule
-                fkuprule,
-                fkdelrule,
-            ) = row
+        for row in rs.mappings():
+            table_name = row[key_constraints.c.table_name]
+            rfknm = row[key_constraints.c.constraint_name]
+            scol = row[key_constraints.c.column_name]
+            rschema = row[key_constraints_ref.c.table_schema]
+            rtbl = row[key_constraints_ref.c.table_name]
+            rcol = row[key_constraints_ref.c.column_name]
+            _ = row[ref_constraints.c.match_option]
+            fkuprule = row[ref_constraints.c.update_rule]
+            fkdelrule = row[ref_constraints.c.delete_rule]
 
             table_fkey = fkeys[(schema, table_name)]
 
@@ -1540,7 +1547,10 @@ There are no access to %Dictionary, may be required for some advanced features,
             ).outerjoin(
                 property,
                 sql.and_(
-                    property.c.SqlFieldName == columns.c.column_name,
+                    sql.or_(
+                        property.c.Name == columns.c.column_name,
+                        property.c.SqlFieldName == columns.c.column_name,
+                    ),
                     property.c.parent
                     == sql.select(tables.c.classname)
                     .where(
@@ -1593,6 +1603,9 @@ There are no access to %Dictionary, may be required for some advanced features,
             if coltype is None:
                 util.warn("Did not recognize type '%s' of column '%s'" % (type_, name))
                 coltype = sqltypes.NULLTYPE
+            elif coltype is VARCHAR and charlen == 1:
+                # VARCHAR(1) as CHAR
+                coltype = CHAR
             else:
                 if issubclass(coltype, sqltypes.Numeric):
                     kwargs["precision"] = int(numericprec)
@@ -1601,6 +1614,10 @@ There are no access to %Dictionary, may be required for some advanced features,
                         kwargs["scale"] = int(numericscale)
 
                 coltype = coltype(**kwargs)
+
+            default = "" if default == "$c(0)" else default
+            if default and default.startswith('"'):
+                default = "'%s'" % (default[1:-1].replace("'", "''"),)
 
             cdict = {
                 "name": name,

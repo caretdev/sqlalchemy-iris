@@ -1,9 +1,18 @@
 from sqlalchemy.testing.requirements import SuiteRequirements
 
+try:
+    from alembic.testing.requirements import SuiteRequirements as AlembicRequirements
+except:  # noqa
+    from sqlalchemy.testing.requirements import Requirements as BaseRequirements
+
+    class AlembicRequirements(BaseRequirements):
+        pass
+
+
 from sqlalchemy.testing import exclusions
 
 
-class Requirements(SuiteRequirements):
+class Requirements(SuiteRequirements, AlembicRequirements):
     @property
     def array_type(self):
         return exclusions.closed()
@@ -120,7 +129,6 @@ class Requirements(SuiteRequirements):
     @property
     def fk_constraint_option_reflection_onupdate_restrict(self):
         return exclusions.closed()
-
 
     @property
     def precision_numerics_many_significant_digits(self):
@@ -239,3 +247,13 @@ class Requirements(SuiteRequirements):
         """Target database reflects unique indexes as unique constrains."""
 
         return exclusions.open()
+
+    # alembic
+
+    @property
+    def fk_onupdate_restrict(self):
+        return exclusions.closed()
+
+    @property
+    def fk_ondelete_restrict(self):
+        return exclusions.closed()

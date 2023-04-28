@@ -3,6 +3,13 @@ from sqlalchemy.dialects import registry as _registry
 from . import base
 from . import iris
 
+try:
+    import alembic
+except ImportError:
+    pass
+else:
+    from .alembic import IRISImpl
+
 from .base import BIGINT
 from .base import BIT
 from .base import DATE

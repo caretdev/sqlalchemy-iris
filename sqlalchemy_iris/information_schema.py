@@ -76,6 +76,7 @@ property_definition = Table(
     "PropertyDefinition",
     ischema,
     Column("parent", String),
+    Column("Name", String),
     Column("SqlFieldName", String),
     Column("SqlComputeCode", String),
     Column("SqlComputed", Boolean),
