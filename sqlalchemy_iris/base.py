@@ -1073,7 +1073,6 @@ There are no access to %Dictionary, may be required for some advanced features,
 
     @reflection.cache
     def has_table(self, connection, table_name, schema=None, **kw):
-        self._ensure_has_table_connection(connection)
         tables = ischema.tables
         schema_name = self.get_schema(schema)
 
@@ -1085,14 +1084,7 @@ There are no access to %Dictionary, may be required for some advanced features,
         )
         return bool(connection.execute(s).scalar())
 
-    def _default_or_error(self, connection, tablename, schema, method, **kw):
-        if self.has_table(connection, tablename, schema, **kw):
-            return method()
-        else:
-            raise exc.NoSuchTableError(f"{schema}.{tablename}")
-
     def _get_all_objects(self, connection, schema, filter_names, scope, kind, **kw):
-        self._ensure_has_table_connection(connection)
         tables = ischema.tables
         schema_name = self.get_schema(schema)
 

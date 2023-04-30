@@ -1,6 +1,11 @@
 import logging
 
+from typing import Optional
+
 from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql.base import Executable
+from sqlalchemy.sql.elements import ClauseElement
+
 from alembic.ddl import DefaultImpl
 from alembic.ddl.base import ColumnNullable
 from alembic.ddl.base import ColumnType
@@ -56,25 +61,43 @@ class IRISImpl(DefaultImpl):
             rendered_inspector_default,
         )
 
-    def correct_for_autogen_constraints(
+    def drop_column(
         self,
-        conn_unique_constraints,
-        conn_indexes,
-        metadata_unique_constraints,
-        metadata_indexes,
-    ):
+        table_name: str,
+        column: Column,
+        schema: Optional[str] = None,
+        **kw,
+    ) -> None:
+        column_name = column.name
+        fkeys = self.dialect.get_foreign_keys(self.connection, table_name, schema)
+        fkey = [
+            fkey["name"] for fkey in fkeys if column_name in fkey["constrained_columns"]
+        ]
+        if len(fkey) == 1:
+            self._exec(_ExecDropForeignKey(table_name, fkey[0], schema))
+        super().drop_column(table_name, column, schema, **kw)
 
-        doubled_constraints = {
-            index
-            for index in conn_indexes
-            if index.info.get("duplicates_constraint")
-        }
 
-        for ix in doubled_constraints:
-            conn_indexes.remove(ix)
+class _ExecDropForeignKey(Executable, ClauseElement):
+    inherit_cache = False
 
-        # if not sqla_compat.sqla_2:
-        #     self._skip_functional_indexes(metadata_indexes, conn_indexes)
+    def __init__(
+        self, table_name: str, foreignkey_name: Column, schema: Optional[str]
+    ) -> None:
+        self.table_name = table_name
+        self.foreignkey_name = foreignkey_name
+        self.schema = schema
+
+
+@compiles(_ExecDropForeignKey, "iris")
+def _exec_drop_foreign_key(
+    element: _ExecDropForeignKey, compiler: IRISDDLCompiler, **kw
+) -> str:
+    return "%s DROP FOREIGN KEY %s" % (
+        alter_table(compiler, element.table_name, element.schema),
+        format_column_name(compiler, element.foreignkey_name),
+    )
+
 
 @compiles(ColumnNullable, "iris")
 def visit_column_nullable(
