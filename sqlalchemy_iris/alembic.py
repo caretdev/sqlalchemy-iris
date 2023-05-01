@@ -1,24 +1,36 @@
 import logging
 
 from typing import Optional
+from typing import Any
 
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.base import Executable
 from sqlalchemy.sql.elements import ClauseElement
+from sqlalchemy.sql.type_api import TypeEngine
+from sqlalchemy.sql import table
+from sqlalchemy import types
 
 from alembic.ddl import DefaultImpl
 from alembic.ddl.base import ColumnNullable
 from alembic.ddl.base import ColumnType
 from alembic.ddl.base import ColumnName
+from alembic.ddl.base import AddColumn
+from alembic.ddl.base import DropColumn
 from alembic.ddl.base import Column
 from alembic.ddl.base import alter_table
 from alembic.ddl.base import alter_column
 from alembic.ddl.base import format_type
 from alembic.ddl.base import format_column_name
-
 from .base import IRISDDLCompiler
 
 log = logging.getLogger(__name__)
+
+# IRIS Interprets these types as %Streams, and no direct type change is available
+_as_stream = [
+    types.LargeBinary,
+    types.BLOB,
+    types.CLOB,
+]
 
 
 class IRISImpl(DefaultImpl):
@@ -76,6 +88,60 @@ class IRISImpl(DefaultImpl):
         if len(fkey) == 1:
             self._exec(_ExecDropForeignKey(table_name, fkey[0], schema))
         super().drop_column(table_name, column, schema, **kw)
+
+    def alter_column(
+        self,
+        table_name: str,
+        column_name: str,
+        type_: Optional[TypeEngine] = None,
+        existing_type: Optional[TypeEngine] = None,
+        schema: Optional[str] = None,
+        name: Optional[str] = None,
+        **kw: Any,
+    ) -> None:
+        if existing_type.__class__ not in _as_stream and type_.__class__ in _as_stream:
+            """
+            To change column type to %Stream
+            * rename the column with a new name with suffix `__superset_tmp`
+            * create a new column with the old name
+            * copy data from an old column to new column
+            * drop old column
+            * fix missing parameters, such as nullable
+            """
+            tmp_column = f"{column_name}__superset_tmp"
+            self._exec(ColumnName(table_name, column_name, tmp_column, schema=schema))
+            new_kw = {}
+            self._exec(
+                AddColumn(
+                    table_name,
+                    Column(column_name, type_=type_, **new_kw),
+                    schema=schema,
+                )
+            )
+            tab = table(
+                table_name,
+                Column(column_name, key="new_col"),
+                Column(tmp_column, key="old_col"),
+                schema=schema,
+            )
+            self._exec(tab.update().values({tab.c.new_col: tab.c.old_col}))
+            self._exec(DropColumn(table_name, Column(tmp_column), schema=schema))
+            new_kw = {}
+            for k in ["server_default", "nullable", "autoincrement"]:
+                if f"existing_{k}" in kw:
+                    new_kw[k] = kw[f"existing_{k}"]
+            return super().alter_column(
+                table_name, column_name, schema=schema, name=name, **new_kw
+            )
+        return super().alter_column(
+            table_name,
+            column_name,
+            type_=type_,
+            existing_type=existing_type,
+            schema=schema,
+            name=name,
+            **kw,
+        )
 
 
 class _ExecDropForeignKey(Executable, ClauseElement):
