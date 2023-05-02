@@ -1,3 +1,5 @@
+from enum import Enum
+
 from sqlalchemy.testing.suite import FetchLimitOffsetTest as _FetchLimitOffsetTest
 from sqlalchemy.testing.suite import CompoundSelectTest as _CompoundSelectTest
 from sqlalchemy.testing.suite import CTETest as _CTETest
@@ -186,4 +188,42 @@ class IRISBinaryTest(fixtures.TablesTest):
         self._assert_result(
             select(self.tables.data),
             [(b"test", b"test")],
+        )
+
+
+class SomeType(str, Enum):
+    FIRST = "first value"
+    SECOND = "second value"
+
+
+class IRISEnumTest(fixtures.TablesTest):
+    __backend__ = True
+
+    @classmethod
+    def define_tables(cls, metadata):
+        Table(
+            "data",
+            metadata,
+            Column("val", String(50)),
+        )
+
+    @classmethod
+    def insert_data(cls, connection):
+        connection.execute(
+            cls.tables.data.insert(),
+            [
+                {"val": SomeType.FIRST},
+                {"val": SomeType.SECOND},
+                {"val": None},
+            ],
+        )
+
+    def _assert_result(self, select, result):
+        with config.db.connect() as conn:
+            eq_(conn.execute(select).fetchall(), result)
+
+    def test_expect_bytes(self):
+        self._assert_result(
+            select(self.tables.data),
+            [(SomeType.FIRST,), (SomeType.SECOND,), (None,)],
         )
