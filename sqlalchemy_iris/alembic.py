@@ -19,6 +19,7 @@ from alembic.ddl.base import DropColumn
 from alembic.ddl.base import Column
 from alembic.ddl.base import alter_table
 from alembic.ddl.base import alter_column
+from alembic.ddl.base import drop_column
 from alembic.ddl.base import format_type
 from alembic.ddl.base import format_column_name
 from .base import IRISDDLCompiler
@@ -72,22 +73,6 @@ class IRISImpl(DefaultImpl):
             rendered_metadata_default,
             rendered_inspector_default,
         )
-
-    def drop_column(
-        self,
-        table_name: str,
-        column: Column,
-        schema: Optional[str] = None,
-        **kw,
-    ) -> None:
-        column_name = column.name
-        fkeys = self.dialect.get_foreign_keys(self.connection, table_name, schema)
-        fkey = [
-            fkey["name"] for fkey in fkeys if column_name in fkey["constrained_columns"]
-        ]
-        if len(fkey) == 1:
-            self._exec(_ExecDropForeignKey(table_name, fkey[0], schema))
-        super().drop_column(table_name, column, schema, **kw)
 
     def alter_column(
         self,
@@ -192,3 +177,11 @@ def visit_rename_column(element: ColumnName, compiler: IRISDDLCompiler, **kw) ->
         alter_column(compiler, element.column_name),
         format_column_name(compiler, element.newname),
     )
+
+@compiles(DropColumn, "iris")
+def visit_drop_column(element: DropColumn, compiler: IRISDDLCompiler, **kw) -> str:
+    return "%s %s CASCADE" % (
+        alter_table(compiler, element.table_name, element.schema),
+        drop_column(compiler, element.column.name, **kw),
+    )
+
