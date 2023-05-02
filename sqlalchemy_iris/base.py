@@ -394,6 +394,12 @@ RESERVED_WORDS = set(
 class IRISCompiler(sql.compiler.SQLCompiler):
     """IRIS specific idiosyncrasies"""
 
+    def visit_exists_unary_operator(self, element, operator, within_columns_clause=False, **kw):
+        if within_columns_clause:
+            return "(SELECT 1 WHERE EXISTS(%s))" % self.process(element.element, **kw)
+        else:
+            return "EXISTS(%s)" % self.process(element.element, **kw)
+
     def limit_clause(self, select, **kw):
         return ""
 
@@ -555,16 +561,6 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             return " ORDER BY " + order_by
         else:
             return ""
-
-    def visit_column(self, column, within_columns_clause=False, **kwargs):
-        text = super().visit_column(
-            column, within_columns_clause=within_columns_clause, **kwargs
-        )
-        if within_columns_clause:
-            return text
-        # if isinstance(column.type, sqltypes.Text):
-        #     text = "CONVERT(VARCHAR, %s)" % (text,)
-        return text
 
     def visit_concat_op_binary(self, binary, operator, **kw):
         return "STRING(%s, %s)" % (

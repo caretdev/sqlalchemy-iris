@@ -3,6 +3,7 @@ from sqlalchemy.testing.suite import CompoundSelectTest as _CompoundSelectTest
 from sqlalchemy.testing.suite import CTETest as _CTETest
 from sqlalchemy.testing.suite import DifficultParametersTest as _DifficultParametersTest
 from sqlalchemy.testing import fixtures
+from sqlalchemy.orm import Session
 from sqlalchemy import testing
 from sqlalchemy import Table, Column, Integer, String, select
 import pytest
@@ -28,7 +29,6 @@ class DifficultParametersTest(_DifficultParametersTest):
 
 
 class FetchLimitOffsetTest(_FetchLimitOffsetTest):
-
     def test_simple_offset_no_order(self, connection):
         table = self.tables.some_table
         self._assert_result(
@@ -55,35 +55,12 @@ class FetchLimitOffsetTest(_FetchLimitOffsetTest):
         assert_data = [(1, 1, 2), (2, 2, 3), (3, 3, 4), (4, 4, 5), (5, 4, 6)]
 
         for limit, offset in cases:
-            expected = assert_data[offset: offset + limit]
+            expected = assert_data[offset : offset + limit]
             self._assert_result(
                 connection,
                 select(table).limit(limit).offset(offset),
                 expected,
             )
-
-
-# class MiscTest(AssertsExecutionResults, AssertsCompiledSQL, fixtures.TablesTest):
-
-#     __backend__ = True
-
-#     __only_on__ = "iris"
-
-#     @classmethod
-#     def define_tables(cls, metadata):
-#         Table(
-#             "some_table",
-#             metadata,
-#             Column("id", Integer, primary_key=True),
-#             Column("x", Integer),
-#             Column("y", Integer),
-#             Column("z", String(50)),
-#         )
-
-#     # def test_compile(self):
-#     #     table = self.tables.some_table
-
-#     #     stmt = select(table.c.id, table.c.x).offset(20).limit(10)
 
 
 class TransactionTest(fixtures.TablesTest):
@@ -134,3 +111,42 @@ class TransactionTest(fixtures.TablesTest):
         transaction.rollback()
         result = connection.exec_driver_sql("select * from users")
         assert len(result.fetchall()) == 0
+
+
+class IRISExistsTest(fixtures.TablesTest):
+    __backend__ = True
+
+    @classmethod
+    def define_tables(cls, metadata):
+        Table(
+            "users",
+            metadata,
+            Column("user_id", Integer, primary_key=True),
+            Column("user_name", String(20)),
+            test_needs_acid=True,
+        )
+
+    @classmethod
+    def insert_data(cls, connection):
+        connection.execute(
+            cls.tables.users.insert(),
+            [
+                {"user_id": 1, "user_name": "admin"},
+            ],
+        )
+
+    def test_exists(self):
+        with config.db.connect() as conn:
+            with Session(conn) as s:
+                assert s.query(
+                    select(self.tables.users)
+                    .where(self.tables.users.c.user_name == "admin")
+                    .exists()
+                ).scalar()
+
+                assert not s.query(
+                    select(self.tables.users)
+                    .where(self.tables.users.c.user_name == "nope")
+                    .exists()
+                ).scalar()
+                
