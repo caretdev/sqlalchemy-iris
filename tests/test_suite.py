@@ -3,9 +3,15 @@ from sqlalchemy.testing.suite import CompoundSelectTest as _CompoundSelectTest
 from sqlalchemy.testing.suite import CTETest as _CTETest
 from sqlalchemy.testing.suite import DifficultParametersTest as _DifficultParametersTest
 from sqlalchemy.testing import fixtures
+from sqlalchemy.testing.assertions import eq_
+from sqlalchemy.testing import config
 from sqlalchemy.orm import Session
 from sqlalchemy import testing
-from sqlalchemy import Table, Column, Integer, String, select
+from sqlalchemy import Table, Column, select
+from sqlalchemy.types import Integer
+from sqlalchemy.types import String
+from sqlalchemy.types import VARBINARY
+from sqlalchemy.types import BINARY
 import pytest
 
 from sqlalchemy.testing.suite import *  # noqa
@@ -149,4 +155,35 @@ class IRISExistsTest(fixtures.TablesTest):
                     .where(self.tables.users.c.user_name == "nope")
                     .exists()
                 ).scalar()
-                
+
+
+class IRISBinaryTest(fixtures.TablesTest):
+    __backend__ = True
+
+    @classmethod
+    def define_tables(cls, metadata):
+        Table(
+            "data",
+            metadata,
+            Column("bin1", BINARY(50)),
+            Column("bin2", VARBINARY(50)),
+        )
+
+    @classmethod
+    def insert_data(cls, connection):
+        connection.execute(
+            cls.tables.data.insert(),
+            [
+                {"bin1": b"test", "bin2": b"test"},
+            ],
+        )
+
+    def _assert_result(self, select, result):
+        with config.db.connect() as conn:
+            eq_(conn.execute(select).fetchall(), result)
+
+    def test_expect_bytes(self):
+        self._assert_result(
+            select(self.tables.data),
+            [(b"test", b"test")],
+        )

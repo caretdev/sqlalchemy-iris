@@ -817,6 +817,8 @@ class IRISDialect(default.DefaultDialect):
 
     supports_sequences = False
 
+    returns_native_bytes = True
+
     div_is_floordiv = False
 
     postfetch_lastrowid = True
