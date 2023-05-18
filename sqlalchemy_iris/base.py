@@ -10,6 +10,7 @@ from sqlalchemy.sql import util as sql_util
 from sqlalchemy.sql import between
 from sqlalchemy.sql import func
 from sqlalchemy.sql.functions import ReturnTypeFromArgs
+from sqlalchemy.sql.elements import Null
 from sqlalchemy.sql import expression
 from sqlalchemy.sql import schema
 from sqlalchemy import sql, text
@@ -444,6 +445,22 @@ class IRISCompiler(sql.compiler.SQLCompiler):
 
     def visit_is_false_unary_operator(self, element, operator, **kw):
         return "%s = 0" % self.process(element.element, **kw)
+
+    def visit_is__binary(self, binary, operator, **kw):
+        op = "IS" if isinstance(binary.right, Null) else "="
+        return "%s %s %s" % (
+            self.process(binary.left),
+            op,
+            self.process(binary.right),
+        )
+
+    def visit_is_not_binary(self, binary, operator, **kw):
+        op = "IS NOT" if isinstance(binary.right, Null) else "<>"
+        return "%s %s %s" % (
+            self.process(binary.left),
+            op,
+            self.process(binary.right),
+        )
 
     def get_select_precolumns(self, select, **kw):
         text = ""
