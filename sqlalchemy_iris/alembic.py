@@ -1,4 +1,5 @@
 import logging
+import re
 
 from typing import Optional
 from typing import Any
@@ -67,12 +68,17 @@ class IRISImpl(DefaultImpl):
         ):
             return False
 
-        return super().compare_server_default(
-            inspector_column,
-            metadata_column,
-            rendered_metadata_default,
-            rendered_inspector_default,
-        )
+        if rendered_metadata_default is not None:
+            rendered_metadata_default = re.sub(
+                r"[\(\) \"\']", "", rendered_metadata_default
+            )
+
+        if rendered_inspector_default is not None:
+            rendered_inspector_default = re.sub(
+                r"[\(\) \"\']", "", rendered_inspector_default
+            )
+
+        return rendered_inspector_default != rendered_metadata_default
 
     def alter_column(
         self,
@@ -178,10 +184,10 @@ def visit_rename_column(element: ColumnName, compiler: IRISDDLCompiler, **kw) ->
         format_column_name(compiler, element.newname),
     )
 
+
 @compiles(DropColumn, "iris")
 def visit_drop_column(element: DropColumn, compiler: IRISDDLCompiler, **kw) -> str:
     return "%s %s CASCADE" % (
         alter_table(compiler, element.table_name, element.schema),
         drop_column(compiler, element.column.name, **kw),
     )
-
