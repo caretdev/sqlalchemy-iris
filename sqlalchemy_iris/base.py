@@ -11,6 +11,7 @@ from sqlalchemy.sql import between
 from sqlalchemy.sql import func
 from sqlalchemy.sql.functions import ReturnTypeFromArgs
 from sqlalchemy.sql.elements import Null
+from sqlalchemy.sql.elements import quoted_name
 from sqlalchemy.sql import expression
 from sqlalchemy.sql import schema
 from sqlalchemy import sql, text
@@ -1676,3 +1677,8 @@ There are no access to %Dictionary, may be required for some advanced features,
         if view_def:
             return view_def
         raise exc.NoSuchTableError(f"{schema}.{view_name}")
+    
+    def normalize_name(self, name):
+        if self.identifier_preparer._requires_quotes(name):
+            return quoted_name(name, quote=True)
+        return name
