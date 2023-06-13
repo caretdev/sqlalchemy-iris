@@ -1019,10 +1019,14 @@ There are no access to %Dictionary, may be required for some advanced features,
                 print("-- @param = %r" % (p,))
 
     def do_execute(self, cursor, query, params, context=None):
+        if query.endswith(";"):
+            query = query[:-1]
         self._debug(query, params)
         cursor.execute(query, params)
 
     def do_executemany(self, cursor, query, params, context=None):
+        if query.endswith(";"):
+            query = query[:-1]
         self._debug(query, params, True)
         cursor.executemany(query, params)
 
