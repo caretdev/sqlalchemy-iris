@@ -1443,6 +1443,12 @@ There are no access to %Dictionary, may be required for some advanced features,
                     key_constraints.c.table_name.in_(all_objects),
                 )
             )
+            .group_by(
+                key_constraints.c.table_name,
+                key_constraints.c.constraint_name,
+                key_constraints.c.column_name,
+                key_constraints_ref.c.table_schema
+            )
             .order_by(
                 key_constraints.c.constraint_name,
                 key_constraints.c.ordinal_position,
@@ -1606,10 +1612,12 @@ There are no access to %Dictionary, may be required for some advanced features,
             ):
                 if charlen == -1:
                     charlen = None
-                try:
-                    kwargs["length"] = int(charlen)
-                except ValueError:
                     kwargs["length"] = 0
+                else:
+                    try:
+                        kwargs["length"] = int(charlen)
+                    except ValueError:
+                        kwargs["length"] = 0
                 if collation:
                     kwargs["collation"] = collation
             if coltype is None:
