@@ -1485,9 +1485,11 @@ There are no access to %Dictionary, may be required for some advanced features,
 
             if fkdelrule != "NO ACTION":
                 fkey["options"]["ondelete"] = fkdelrule
-
-            fkey["constrained_columns"].append(scol)
-            fkey["referred_columns"].append(rcol)
+            
+            if scol not in fkey["constrained_columns"]:
+                fkey["constrained_columns"].append(scol)
+            if rcol not in fkey["referred_columns"]:
+                fkey["referred_columns"].append(rcol)
 
         default = ReflectionDefaults.foreign_keys
 
@@ -1606,10 +1608,12 @@ There are no access to %Dictionary, may be required for some advanced features,
             ):
                 if charlen == -1:
                     charlen = None
-                try:
-                    kwargs["length"] = int(charlen)
-                except ValueError:
                     kwargs["length"] = 0
+                else:
+                    try:
+                        kwargs["length"] = int(charlen)
+                    except ValueError:
+                        kwargs["length"] = 0
                 if collation:
                     kwargs["collation"] = collation
             if coltype is None:
