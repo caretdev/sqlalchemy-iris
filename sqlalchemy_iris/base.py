@@ -966,6 +966,7 @@ There are no access to %Dictionary, may be required for some advanced features,
     def create_connect_args(self, url):
         opts = {}
 
+        opts["application_name"] = "sqlalchemy"
         opts["hostname"] = url.host
         opts["port"] = int(url.port) if url.port else 1972
         opts["namespace"] = url.database if url.database else "USER"
