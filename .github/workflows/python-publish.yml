@@ -21,7 +21,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: 
+        image:
+          - intersystemsdc/iris-community:2023.3-zpm
           - intersystemsdc/iris-community:latest
           - intersystemsdc/iris-community:preview
     runs-on: ubuntu-latest
@@ -33,7 +34,7 @@ jobs:
     - name: Run Tests
       env:
         FOLDER: /home/irisowner/sqlalchemy-iris
-      run: | 
+      run: |
         docker build --build-arg BASE=$IMAGE -t sqlalchemy-iris .
         docker run -i --rm sqlalchemy-iris
 
@@ -53,7 +54,7 @@ jobs:
       id: set-version
       run: |
         VERSION=$(grep version setup.cfg | cut -d=  -f2 | tr -d '[:blank:]')
-        [ $GITHUB_EVENT_NAME == 'push' ] && VERSION+=b && VERSION+=$(($(git tag -l "*$VERSION*" | cut -db -f2 | sort -n | tail -1)+1)) 
+        [ $GITHUB_EVENT_NAME == 'push' ] && VERSION+=b && VERSION+=$(($(git tag -l "*$VERSION*" | cut -db -f2 | sort -n | tail -1)+1))
         [ $GITHUB_EVENT_NAME == 'release' ] && VERSION=${{ github.event.release.tag_name }} && VERSION=${VERSION/v/}
         echo VERSION = $VERSION
         sed -ie "s/version = .*/version = $VERSION/" setup.cfg
