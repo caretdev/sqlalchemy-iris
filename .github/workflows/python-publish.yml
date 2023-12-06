@@ -35,8 +35,10 @@ jobs:
           IRIS_USERNAME: sqlalchemy
           IRIS_PASSWORD: sqlalchemy
           IRIS_NAMESPACE: TEST
+        #  /irisHealth.sh is just useless
         options: >-
-          --no-healthcheck
+          --health-cmd true
+          --health-start-period 30s
     steps:
     - uses: actions/checkout@v3
     - name: Install requirements
