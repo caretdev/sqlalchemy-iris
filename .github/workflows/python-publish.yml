@@ -35,9 +35,13 @@ jobs:
           IRIS_USERNAME: sqlalchemy
           IRIS_PASSWORD: sqlalchemy
           IRIS_NAMESPACE: TEST
+        options: >-
+          --health-interval 10s
+          --health-timeout 15s
+          --health-start-period 15s
+          --health-retries 5
     steps:
     - uses: actions/checkout@v3
-    - run: docker pull $IMAGE
     - name: Install requirements
       run: |
         pip install -U pip setuptools
@@ -46,7 +50,7 @@ jobs:
         pip install -e .
     - name: Run Tests
       run: |
-        pytest --dburi iris://sqlalchemy:sqlalchemy@localhost:1972/TEST
+        pytest --dburi iris://sqlalchemy:sqlalchemy@iris:1972/TEST
 
   deploy:
     needs: test
