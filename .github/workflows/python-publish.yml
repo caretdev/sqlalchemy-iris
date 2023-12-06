@@ -28,15 +28,25 @@ jobs:
     runs-on: ubuntu-latest
     env:
       IMAGE: ${{ matrix.image }}
+    services:
+      iris:
+        image: ${{ matrix.image }}
+        env:
+          IRIS_USERNAME: sqlalchemy
+          IRIS_PASSWORD: sqlalchemy
+          IRIS_NAMESPACE: TEST
     steps:
     - uses: actions/checkout@v3
     - run: docker pull $IMAGE
-    - name: Run Tests
-      env:
-        FOLDER: /home/irisowner/sqlalchemy-iris
+    - name: Install requirements
       run: |
-        docker build --build-arg BASE=$IMAGE -t sqlalchemy-iris .
-        docker run -i --rm sqlalchemy-iris
+        pip install -U pip setuptools
+        pip install -r requirements-dev.txt
+        pip install -r requirements-iris.txt
+        pip install -e .
+    - name: Run Tests
+      run: |
+        pytest --dburi iris://sqlalchemy:sqlalchemy@localhost:1972/TEST
 
   deploy:
     needs: test
