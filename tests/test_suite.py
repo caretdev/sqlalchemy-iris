@@ -4,6 +4,9 @@ from sqlalchemy.testing.suite import FetchLimitOffsetTest as _FetchLimitOffsetTe
 from sqlalchemy.testing.suite import CompoundSelectTest as _CompoundSelectTest
 from sqlalchemy.testing.suite import CTETest as _CTETest
 from sqlalchemy.testing.suite import DifficultParametersTest as _DifficultParametersTest
+from sqlalchemy.testing.suite import (
+    BizarroCharacterFKResolutionTest as _BizarroCharacterFKResolutionTest,
+)
 from sqlalchemy.testing import fixtures
 from sqlalchemy.testing.assertions import eq_
 from sqlalchemy.testing import config
@@ -262,3 +265,19 @@ class IRISEnumTest(fixtures.TablesTest):
             select(self.tables.data),
             [(SomeType.FIRST,), (SomeType.SECOND,), (None,)],
         )
+
+
+class BizarroCharacterFKResolutionTest(_BizarroCharacterFKResolutionTest):
+    @testing.combinations(
+        ("id",), ("(3)",), ("col%p",), ("[brack]",), argnames="columnname"
+    )
+    @testing.variation("use_composite", [True, False])
+    @testing.combinations(
+        ("plain",),
+        # ("(2)",), not in IRIS
+        ("per % cent",),
+        ("[brackets]",),
+        argnames="tablename",
+    )
+    def test_fk_ref(self, connection, metadata, use_composite, tablename, columnname):
+        super().test_fk_ref(connection, metadata, use_composite, tablename, columnname)

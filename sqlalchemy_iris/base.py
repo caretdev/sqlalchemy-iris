@@ -1489,7 +1489,7 @@ There are no access to %Dictionary, may be required for some advanced features,
 
             if fkdelrule != "NO ACTION":
                 fkey["options"]["ondelete"] = fkdelrule
-            
+
             if scol not in fkey["constrained_columns"]:
                 fkey["constrained_columns"].append(scol)
             if rcol not in fkey["referred_columns"]:
@@ -1689,7 +1689,7 @@ There are no access to %Dictionary, may be required for some advanced features,
         if view_def:
             return view_def
         raise exc.NoSuchTableError(f"{schema}.{view_name}")
-    
+
     def normalize_name(self, name):
         if self.identifier_preparer._requires_quotes(name):
             return quoted_name(name, quote=True)
