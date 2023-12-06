@@ -36,10 +36,7 @@ jobs:
           IRIS_PASSWORD: sqlalchemy
           IRIS_NAMESPACE: TEST
         options: >-
-          --health-interval 10s
-          --health-timeout 15s
-          --health-start-period 15s
-          --health-retries 5
+          --no-healthcheck
     steps:
     - uses: actions/checkout@v3
     - name: Install requirements
