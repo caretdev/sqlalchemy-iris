@@ -14,6 +14,8 @@ from sqlalchemy.types import Integer
 from sqlalchemy.types import String
 from sqlalchemy.types import VARBINARY
 from sqlalchemy.types import BINARY
+from sqlalchemy_iris import TINYINT
+from sqlalchemy.exc import DatabaseError
 import pytest
 
 from sqlalchemy.testing.suite import *  # noqa
@@ -69,6 +71,39 @@ class FetchLimitOffsetTest(_FetchLimitOffsetTest):
                 select(table).limit(limit).offset(offset),
                 expected,
             )
+
+
+class TinyintTest(fixtures.TablesTest):
+    __backend__ = True
+
+    @classmethod
+    def define_tables(cls, metadata):
+        Table(
+            "test_tinyint",
+            metadata,
+            Column("val_tinyint", TINYINT),
+        )
+
+    @testing.fixture
+    def local_connection(self):
+        with testing.db.connect() as conn:
+            yield conn
+
+    def test_commits(self, local_connection):
+        test_tinyint = self.tables.test_tinyint
+        connection = local_connection
+
+        transaction = connection.begin()
+        connection.execute(test_tinyint.insert(), dict(val_tinyint=100))
+        with pytest.raises(DatabaseError):
+            connection.execute(test_tinyint.insert(), dict(val_tinyint=129))
+        with pytest.raises(DatabaseError):
+            connection.execute(test_tinyint.insert(), dict(val_tinyint=-129))
+        transaction.commit()
+
+        result = connection.exec_driver_sql("select * from test_tinyint")
+        assert len(result.fetchall()) == 1
+        connection.close()
 
 
 class TransactionTest(fixtures.TablesTest):

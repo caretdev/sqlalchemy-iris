@@ -745,6 +745,9 @@ class IRISTypeCompiler(compiler.GenericTypeCompiler):
     def visit_DOUBLE(self, type_, **kw):
         return "DOUBLE"
 
+    def visit_TINYINT(self, type_, **kw):
+        return "TINYINT"
+
 
 class IRISIdentifierPreparer(sql.compiler.IdentifierPreparer):
     """Install IRIS specific reserved words."""
