@@ -36,20 +36,17 @@ def start_container(opt, file_config):
     iris = None
     if not opt.container:
         return
-    try:
-        print("Starting IRIS container:", opt.container)
-        iris = IRISContainer(
-            opt.container,
-            username="sqlalchemy",
-            password="sqlalchemy",
-            dbname="TEST",
-        )
-        iris.start()
-        print("dburi:", iris.get_connection_url())
-        opt.dburi = [iris.get_connection_url()]
-    except Exception as e:
-        iris = None
-        pytest.exit("Failed to start IRIS container")
+
+    print("Starting IRIS container:", opt.container)
+    iris = IRISContainer(
+        opt.container,
+        username="sqlalchemy",
+        password="sqlalchemy",
+        namespace="TEST",
+    )
+    iris.start()
+    print("dburi:", iris.get_connection_url())
+    opt.dburi = [iris.get_connection_url()]
 
 
 def pytest_unconfigure(config):
