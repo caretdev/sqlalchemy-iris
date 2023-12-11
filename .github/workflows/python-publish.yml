@@ -64,10 +64,10 @@ jobs:
         echo name=$NAME >> $GITHUB_OUTPUT
     - name: Install requirements
       run: |
-        pip install -U pip setuptools
-        pip install -r requirements-dev.txt
-        pip install -r requirements-iris.txt
-        pip install -e .
+        pip install -U pip setuptools wheel \
+                    -r requirements-dev.txt \
+                    -r requirements-iris.txt \
+                    -e .
 
     - name: Build Python package
       run: ./scripts/build-dist.sh
