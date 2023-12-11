@@ -26,16 +26,13 @@ jobs:
           - intersystemsdc/iris-community:latest
           - intersystemsdc/iris-community:preview
     runs-on: ubuntu-latest
-    env:
-      IMAGE: ${{ matrix.image }}
     steps:
     - uses: actions/checkout@v3
     - name: Install requirements
       run: |
-        pip install -U pip setuptools
-        pip install -r requirements-dev.txt
-        pip install -r requirements-iris.txt
-        pip install -e .
+        pip install -r requirements-dev.txt \
+                    -r requirements-iris.txt \
+                    -e .
     - name: Run Tests
       run: |
         pytest --container ${{ matrix.image }}

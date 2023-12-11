@@ -1,7 +1,7 @@
-wheel
-flake8
+# wheel
+# flake8
 pytest
-black
-twine
+# black
+# twine
 alembic
 testcontainers-iris
