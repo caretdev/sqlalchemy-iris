@@ -19,7 +19,7 @@ class Requirements(SuiteRequirements, AlembicRequirements):
 
     @property
     def uuid_data_type(self):
-        return exclusions.closed()
+        return exclusions.open()
 
     @property
     def check_constraints(self):

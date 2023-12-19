@@ -90,6 +90,7 @@ from .types import IRISTime
 from .types import IRISTimeStamp
 from .types import IRISDate
 from .types import IRISDateTime
+from .types import IRISUniqueIdentifier
 
 
 ischema_names = {
@@ -748,6 +749,9 @@ class IRISTypeCompiler(compiler.GenericTypeCompiler):
     def visit_TINYINT(self, type_, **kw):
         return "TINYINT"
 
+    def visit_UUID(self, type_, **kw):
+        return "%UniqueIdentifier"
+
 
 class IRISIdentifierPreparer(sql.compiler.IdentifierPreparer):
     """Install IRIS specific reserved words."""
@@ -804,6 +808,7 @@ colspecs = {
     sqltypes.DateTime: IRISDateTime,
     sqltypes.TIMESTAMP: IRISTimeStamp,
     sqltypes.Time: IRISTime,
+    sqltypes.UUID: IRISUniqueIdentifier,
 }
 
 
