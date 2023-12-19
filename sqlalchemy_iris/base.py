@@ -750,7 +750,7 @@ class IRISTypeCompiler(compiler.GenericTypeCompiler):
         return "TINYINT"
 
     def visit_UUID(self, type_, **kw):
-        return "%UniqueIdentifier"
+        return "UNIQUEIDENTIFIER"
 
 
 class IRISIdentifierPreparer(sql.compiler.IdentifierPreparer):
