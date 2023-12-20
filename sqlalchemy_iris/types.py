@@ -1,7 +1,9 @@
 import datetime
 from decimal import Decimal
 from sqlalchemy.sql import sqltypes
+from sqlalchemy.types import UserDefinedType
 from uuid import UUID as _python_UUID
+from intersystems_iris import IRISList
 
 HOROLOG_ORDINAL = datetime.date(1840, 12, 31).toordinal()
 
@@ -194,6 +196,47 @@ class IRISUniqueIdentifier(sqltypes.Uuid):
                 return None
 
 
+class IRISListBuild(UserDefinedType):
+    cache_ok = True
+
+    def __init__(self, max_items: int = None, item_type: type = float):
+        super(UserDefinedType, self).__init__()
+        self.max_items = max_items
+        max_length = None
+        if type is float or type is int:
+            max_length = max_items * 10
+        elif max_items:
+            max_length = 65535
+        self.max_length = max_length
+
+    def get_col_spec(self, **kw):
+        if self.max_length is None:
+            return "VARBINARY(65535)"
+        return "VARBINARY(%d)" % self.max_length
+
+    def bind_processor(self, dialect):
+        def process(value):
+            irislist = IRISList()
+            if not value:
+                return value
+            if not isinstance(value, list) and not isinstance(value, tuple):
+                raise ValueError("expected list or tuple, got '%s'" % type(value))
+            for item in value:
+                irislist.add(item)
+            return irislist.getBuffer()
+
+        return process
+
+    def result_processor(self, dialect, coltype):
+        def process(value):
+            if value:
+                irislist = IRISList(value)
+                return irislist._list_data
+            return value
+
+        return process
+
+
 class BIT(sqltypes.TypeEngine):
     __visit_name__ = "BIT"
 
@@ -212,3 +255,7 @@ class LONGVARCHAR(sqltypes.VARCHAR):
 
 class LONGVARBINARY(sqltypes.VARBINARY):
     __visit_name__ = "LONGVARBINARY"
+
+
+class LISTBUILD(sqltypes.VARBINARY):
+    __visit_name__ = "VARCHAR"

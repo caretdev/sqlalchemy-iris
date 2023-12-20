@@ -24,6 +24,7 @@ from .base import TIMESTAMP
 from .base import TINYINT
 from .base import VARBINARY
 from .base import VARCHAR
+from .base import IRISListBuild
 
 base.dialect = dialect = iris.dialect
 
@@ -45,5 +46,6 @@ __all__ = [
     "TINYINT",
     "VARBINARY",
     "VARCHAR",
+    "IRISListBuild",
     "dialect",
 ]

@@ -18,6 +18,7 @@ from sqlalchemy.types import String
 from sqlalchemy.types import VARBINARY
 from sqlalchemy.types import BINARY
 from sqlalchemy_iris import TINYINT
+from sqlalchemy_iris import IRISListBuild
 from sqlalchemy.exc import DatabaseError
 import pytest
 
@@ -281,3 +282,42 @@ class BizarroCharacterFKResolutionTest(_BizarroCharacterFKResolutionTest):
     )
     def test_fk_ref(self, connection, metadata, use_composite, tablename, columnname):
         super().test_fk_ref(connection, metadata, use_composite, tablename, columnname)
+
+
+class IRISListBuildTest(fixtures.TablesTest):
+    __backend__ = True
+
+    @classmethod
+    def define_tables(cls, metadata):
+        Table(
+            "data",
+            metadata,
+            Column("val", IRISListBuild(10, float)),
+        )
+
+    @classmethod
+    def fixtures(cls):
+        return dict(
+            data=(
+                ("val",),
+                ([1.0] * 50,),
+                ([1.23] * 50,),
+                ([i for i in range(0, 50)],),
+                (None,),
+            )
+        )
+
+    def _assert_result(self, select, result):
+        with config.db.connect() as conn:
+            eq_(conn.execute(select).fetchall(), result)
+
+    def test_listbuild(self):
+        self._assert_result(
+            select(self.tables.data),
+            [
+                ([1.0] * 50,),
+                ([1.23] * 50,),
+                ([i for i in range(0, 50)],),
+                (None,),
+            ],
+        )
