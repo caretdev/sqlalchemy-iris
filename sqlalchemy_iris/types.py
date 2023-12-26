@@ -1,5 +1,6 @@
 import datetime
 from decimal import Decimal
+from sqlalchemy import func
 from sqlalchemy.sql import sqltypes
 from sqlalchemy.types import UserDefinedType
 from uuid import UUID as _python_UUID
@@ -235,6 +236,15 @@ class IRISListBuild(UserDefinedType):
             return value
 
         return process
+
+    class comparator_factory(UserDefinedType.Comparator):
+        def func(self, funcname: str, other):
+            if not isinstance(other, list) and not isinstance(other, tuple):
+                raise ValueError("expected list or tuple, got '%s'" % type(other))
+            irislist = IRISList()
+            for item in other:
+                irislist.add(item)
+            return getattr(func, funcname)(self, irislist.getBuffer())
 
 
 class BIT(sqltypes.TypeEngine):

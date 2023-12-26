@@ -321,3 +321,19 @@ class IRISListBuildTest(fixtures.TablesTest):
                 (None,),
             ],
         )
+        self._assert_result(
+            select(self.tables.data).where(self.tables.data.c.val == [1.0] * 50),
+            [
+                ([1.0] * 50,),
+            ],
+        )
+
+        self._assert_result(
+            select(
+                self.tables.data,
+                self.tables.data.c.val.func("$listsame", [1.0] * 50).label("same"),
+            ).limit(1),
+            [
+                ([1.0] * 50, 1),
+            ],
+        )
