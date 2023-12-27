@@ -1,1 +1,1 @@
-https://github.com/intersystems-community/intersystems-irispython/releases/download/3.7.4/intersystems_iris-3.7.4-py3-none-any.whl
+https://github.com/intersystems-community/intersystems-irispython/releases/download/3.7.5/intersystems_iris-3.7.5-py3-none-any.whl
