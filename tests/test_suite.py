@@ -18,7 +18,9 @@ from sqlalchemy.types import String
 from sqlalchemy.types import VARBINARY
 from sqlalchemy.types import BINARY
 from sqlalchemy_iris import TINYINT
+from sqlalchemy_iris import INTEGER
 from sqlalchemy_iris import IRISListBuild
+from sqlalchemy_iris import IRISVector
 from sqlalchemy.exc import DatabaseError
 import pytest
 
@@ -335,5 +337,99 @@ class IRISListBuildTest(fixtures.TablesTest):
             ).limit(1),
             [
                 ([1.0] * 50, 1),
+            ],
+        )
+
+
+class IRISVectorTest(fixtures.TablesTest):
+    __backend__ = True
+
+    __requires__ = ("iris_vector",)
+
+    @classmethod
+    def define_tables(cls, metadata):
+        Table(
+            "data",
+            metadata,
+            Column("id", INTEGER),
+            Column("emb", IRISVector(3, float)),
+        )
+
+    @classmethod
+    def fixtures(cls):
+        return dict(
+            data=(
+                (
+                    "id",
+                    "emb",
+                ),
+                (
+                    1,
+                    [1, 1, 1],
+                ),
+                (
+                    2,
+                    [2, 2, 2],
+                ),
+                (
+                    3,
+                    [1, 1, 2],
+                ),
+            )
+        )
+
+    def _assert_result(self, select, result):
+        with config.db.connect() as conn:
+            eq_(conn.execute(select).fetchall(), result)
+
+    def test_vector(self):
+        self._assert_result(
+            select(self.tables.data.c.emb),
+            [
+                ([1, 1, 1],),
+                ([2, 2, 2],),
+                ([1, 1, 2],),
+            ],
+        )
+        self._assert_result(
+            select(self.tables.data.c.id).where(self.tables.data.c.emb == [2, 2, 2]),
+            [
+                (2,),
+            ],
+        )
+
+    def test_cosine(self):
+        self._assert_result(
+            select(
+                self.tables.data.c.id,
+            ).order_by(self.tables.data.c.emb.cosine([1, 1, 1])),
+            [
+                (1,),
+                (2,),
+                (3,),
+            ],
+        )
+
+    def test_cosine_distance(self):
+        self._assert_result(
+            select(
+                self.tables.data.c.id,
+            ).order_by(1 - self.tables.data.c.emb.cosine_distance([1, 1, 1])),
+            [
+                (1,),
+                (2,),
+                (3,),
+            ],
+        )
+
+    def test_max_inner_product(self):
+        self._assert_result(
+            select(
+                self.tables.data.c.id,
+            ).order_by(self.tables.data.c.emb.max_inner_product([1, 1, 1])),
+            [
+                (1,),
+                (3,),
+                (2,),
             ],
         )

@@ -25,6 +25,7 @@ from .base import TINYINT
 from .base import VARBINARY
 from .base import VARCHAR
 from .base import IRISListBuild
+from .base import IRISVector
 
 base.dialect = dialect = iris.dialect
 
@@ -47,5 +48,6 @@ __all__ = [
     "VARBINARY",
     "VARCHAR",
     "IRISListBuild",
+    "IRISVector",
     "dialect",
 ]

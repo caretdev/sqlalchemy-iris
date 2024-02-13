@@ -1,5 +1,6 @@
 import re
 import intersystems_iris.dbapi._DBAPI as dbapi
+import intersystems_iris._IRISNative as IRISNative
 from . import information_schema as ischema
 from sqlalchemy import exc
 from sqlalchemy.orm import aliased
@@ -91,7 +92,8 @@ from .types import IRISTimeStamp
 from .types import IRISDate
 from .types import IRISDateTime
 from .types import IRISUniqueIdentifier
-from .types import IRISListBuild
+from .types import IRISListBuild  # noqa
+from .types import IRISVector  # noqa
 
 
 ischema_names = {
@@ -398,7 +400,9 @@ RESERVED_WORDS = set(
 class IRISCompiler(sql.compiler.SQLCompiler):
     """IRIS specific idiosyncrasies"""
 
-    def visit_exists_unary_operator(self, element, operator, within_columns_clause=False, **kw):
+    def visit_exists_unary_operator(
+        self, element, operator, within_columns_clause=False, **kw
+    ):
         if within_columns_clause:
             return "(SELECT 1 WHERE EXISTS(%s))" % self.process(element.element, **kw)
         else:
@@ -853,6 +857,8 @@ class IRISDialect(default.DefaultDialect):
     supports_empty_insert = False
     supports_is_distinct_from = False
 
+    supports_vectors = None
+
     colspecs = colspecs
 
     ischema_names = ischema_names
@@ -869,6 +875,11 @@ class IRISDialect(default.DefaultDialect):
 
     def __init__(self, **kwargs):
         default.DefaultDialect.__init__(self, **kwargs)
+
+    def _get_server_version_info(self, connection):
+        server_version = connection.connection._connection_info._server_version
+        server_version = server_version[server_version.find("Version") + 8:].split(" ")[0].split(".")
+        return tuple([int(''.join(filter(str.isdigit, v))) for v in server_version])
 
     _isolation_lookup = set(
         [
@@ -887,6 +898,14 @@ class IRISDialect(default.DefaultDialect):
         def on_connect(conn):
             if super_ is not None:
                 super_(conn)
+
+            iris = IRISNative.createIRIS(conn)
+            self.supports_vectors = iris.classMethodBoolean("%SYSTEM.License", "GetFeature", 28)
+            if self.supports_vectors:
+                with conn.cursor() as cursor:
+                    # Distance or similarity
+                    cursor.execute("select vector_cosine(to_vector('1'), to_vector('1'))")
+                    self.vector_cosine_similarity = cursor.fetchone()[0] == 0
 
             self._dictionary_access = False
             with conn.cursor() as cursor:

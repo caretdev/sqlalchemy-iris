@@ -1,4 +1,6 @@
 from sqlalchemy.testing.requirements import SuiteRequirements
+from sqlalchemy.testing.exclusions import against
+from sqlalchemy.testing.exclusions import only_on
 
 try:
     from alembic.testing.requirements import SuiteRequirements as AlembicRequirements
@@ -257,3 +259,13 @@ class Requirements(SuiteRequirements, AlembicRequirements):
     @property
     def fk_ondelete_restrict(self):
         return exclusions.closed()
+
+    def _iris_vector(self, config):
+        if not against(config, "iris >= 2024.1"):
+            return False
+        else:
+            return config.db.dialect.supports_vectors
+
+    @property
+    def iris_vector(self):
+        return only_on(lambda config: self._iris_vector(config))

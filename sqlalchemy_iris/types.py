@@ -1,8 +1,8 @@
 import datetime
 from decimal import Decimal
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.sql import sqltypes
-from sqlalchemy.types import UserDefinedType
+from sqlalchemy.types import UserDefinedType, Float
 from uuid import UUID as _python_UUID
 from intersystems_iris import IRISList
 
@@ -245,6 +245,72 @@ class IRISListBuild(UserDefinedType):
             for item in other:
                 irislist.add(item)
             return getattr(func, funcname)(self, irislist.getBuffer())
+
+
+class IRISVector(UserDefinedType):
+    cache_ok = True
+
+    def __init__(self, max_items: int = None, item_type: type = float):
+        super(UserDefinedType, self).__init__()
+        if item_type not in [float, int, Decimal]:
+            raise TypeError(
+                f"IRISVector expected int, float or Decimal; got {type.__name__}; expected: int, float, Decimal"
+            )
+        self.max_items = max_items
+        self.item_type = item_type
+        item_type_server = (
+            "decimal"
+            if self.item_type is float
+            else "float"
+            if self.item_type is Decimal
+            else "int"
+        )
+        self.item_type_server = item_type_server
+
+    def get_col_spec(self, **kw):
+        if self.max_items is None and self.item_type is None:
+            return "VECTOR"
+        len = str(self.max_items or "")
+        return f"VECTOR({self.item_type_server}, {len})"
+
+    def bind_processor(self, dialect):
+        def process(value):
+            if not value:
+                return value
+            if not isinstance(value, list) and not isinstance(value, tuple):
+                raise ValueError("expected list or tuple, got '%s'" % type(value))
+            return f"[{','.join([str(v) for v in value])}]"
+
+        return process
+
+    def result_processor(self, dialect, coltype):
+        def process(value):
+            if not value:
+                return value
+            vals = value.split(",")
+            vals = [self.item_type(v) for v in vals]
+            return vals
+
+        return process
+
+    class comparator_factory(UserDefinedType.Comparator):
+        # def l2_distance(self, other):
+        #     return self.func('vector_l2', other)
+
+        def max_inner_product(self, other):
+            return self.func('vector_dot_product', other)
+
+        def cosine_distance(self, other):
+            return self.func('vector_cosine', other)
+
+        def cosine(self, other):
+            return (1 - self.func('vector_cosine', other))
+
+        def func(self, funcname: str, other):
+            if not isinstance(other, list) and not isinstance(other, tuple):
+                raise ValueError("expected list or tuple, got '%s'" % type(other))
+            othervalue = f"[{','.join([str(v) for v in other])}]"
+            return getattr(func, funcname)(self, func.to_vector(othervalue, text(self.type.item_type_server)))
 
 
 class BIT(sqltypes.TypeEngine):
