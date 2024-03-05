@@ -46,6 +46,8 @@ class IRISDate(sqltypes.Date):
         def process(value):
             if value is None:
                 return None
+            if isinstance(value, datetime.date):
+                return value
             if isinstance(value, str) and "-" in value[1:]:
                 return datetime.datetime.strptime(value, "%Y-%m-%d").date()
             horolog = int(value) + HOROLOG_ORDINAL
@@ -91,6 +93,8 @@ class IRISDateTime(sqltypes.DateTime):
 
     def result_processor(self, dialect, coltype):
         def process(value):
+            if isinstance(value, datetime.datetime):
+                return value
             if isinstance(value, str):
                 if "." not in value:
                     value += ".0"
@@ -111,6 +115,8 @@ class IRISTime(sqltypes.DateTime):
 
     def result_processor(self, dialect, coltype):
         def process(value):
+            if isinstance(value, datetime.time):
+                return value
             if isinstance(value, str):
                 if "." not in value:
                     value += ".0"
