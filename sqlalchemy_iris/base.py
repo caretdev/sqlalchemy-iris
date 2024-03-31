@@ -902,8 +902,11 @@ class IRISDialect(default.DefaultDialect):
             if self.embedded:
                 self.supports_vectors = conn.iris.cls("%SYSTEM.License").GetFeature(28) == 1
             else:
-                iris = IRISNative.createIRIS(conn)
-                self.supports_vectors = iris.classMethodBoolean("%SYSTEM.License", "GetFeature", 28)
+                try:
+                    iris = IRISNative.createIRIS(conn)
+                    self.supports_vectors = iris.classMethodBoolean("%SYSTEM.License", "GetFeature", 28)
+                except: # noqa
+                    self.supports_vectors = False
             if self.supports_vectors:
                 with conn.cursor() as cursor:
                     # Distance or similarity

@@ -23,10 +23,27 @@ from sqlalchemy import create_engine
 engine = create_engine("iris://_SYSTEM:SYS@localhost:1972/USER")
 ```
 
+IRIS Cloud SQL requires SSLContext
+
+```python
+url = engine.URL.create(
+    drivername="iris",
+    host=host,
+    port=443,
+    username='SQLAdmin',
+    password=password,
+    database='USER',
+)
+
+sslcontext = ssl.create_default_context(cafile="certificateSQLaaS.pem")
+
+engine = create_engine(url, connect_args={"sslcontext": sslcontext})
+```
+
 InterSystems IRIS
 ---
 
-You can run your instance of InterSystems IRIS Community Edition with Docker 
+You can run your instance of InterSystems IRIS Community Edition with Docker
 
 ```shell
 docker run -d --name iris \
