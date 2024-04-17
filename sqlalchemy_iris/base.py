@@ -742,6 +742,12 @@ class IRISTypeCompiler(compiler.GenericTypeCompiler):
     def visit_BIT(self, type_, **kw):
         return "BIT"
 
+    def visit_VARCHAR(self, type_, **kw):
+        # If length is not specified, use 50 as default in IRIS
+        if type_.length is None:
+            type_ = VARCHAR(50)
+        return "VARCHAR(%d)" % type_.length
+
     def visit_TEXT(self, type_, **kw):
         return "VARCHAR(65535)"
 
