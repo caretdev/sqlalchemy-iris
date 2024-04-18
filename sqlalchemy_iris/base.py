@@ -884,8 +884,12 @@ class IRISDialect(default.DefaultDialect):
 
     def _get_server_version_info(self, connection):
         server_version = connection.connection._connection_info._server_version
-        server_version = server_version[server_version.find("Version") + 8:].split(" ")[0].split(".")
-        return tuple([int(''.join(filter(str.isdigit, v))) for v in server_version])
+        server_version = (
+            server_version[server_version.find("Version") + 8 :]
+            .split(" ")[0]
+            .split(".")
+        )
+        return tuple([int("".join(filter(str.isdigit, v))) for v in server_version])
 
     _isolation_lookup = set(
         [
@@ -906,17 +910,23 @@ class IRISDialect(default.DefaultDialect):
                 super_(conn)
 
             if self.embedded:
-                self.supports_vectors = conn.iris.cls("%SYSTEM.License").GetFeature(28) == 1
+                self.supports_vectors = (
+                    conn.iris.cls("%SYSTEM.License").GetFeature(28) == 1
+                )
             else:
                 try:
                     iris = IRISNative.createIRIS(conn)
-                    self.supports_vectors = iris.classMethodBoolean("%SYSTEM.License", "GetFeature", 28)
-                except: # noqa
+                    self.supports_vectors = iris.classMethodBoolean(
+                        "%SYSTEM.License", "GetFeature", 28
+                    )
+                except:  # noqa
                     self.supports_vectors = False
             if self.supports_vectors:
                 with conn.cursor() as cursor:
                     # Distance or similarity
-                    cursor.execute("select vector_cosine(to_vector('1'), to_vector('1'))")
+                    cursor.execute(
+                        "select vector_cosine(to_vector('1'), to_vector('1'))"
+                    )
                     self.vector_cosine_similarity = cursor.fetchone()[0] == 0
 
             self._dictionary_access = False
@@ -1511,9 +1521,9 @@ There are no access to %Dictionary, may be required for some advanced features,
                 table_fkey[rfknm] = fkey = {
                     "name": rfknm,
                     "constrained_columns": [],
-                    "referred_schema": rschema
-                    if rschema != self.default_schema_name
-                    else None,
+                    "referred_schema": (
+                        rschema if rschema != self.default_schema_name else None
+                    ),
                     "referred_table": rtbl,
                     "referred_columns": [],
                     "options": {},

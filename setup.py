@@ -8,6 +8,7 @@ setup(
         "sqlalchemy.dialects": [
             "iris = sqlalchemy_iris.iris:IRISDialect_iris",
             "iris.emb = sqlalchemy_iris.embedded:IRISDialect_emb",
+            "iris.irisasync = sqlalchemy_iris.irisasync:IRISDialect_irisasync",
         ]
     },
 )

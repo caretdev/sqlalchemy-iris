@@ -31,6 +31,7 @@ base.dialect = dialect = iris.dialect
 
 _registry.register("iris.iris", "sqlalchemy_iris.iris", "IRISDialect_iris")
 _registry.register("iris.emb", "sqlalchemy_iris.embedded", "IRISDialect_emb")
+_registry.register("iris.irisasync", "sqlalchemy_iris.irisasync", "IRISDialect_irisasync")
 
 __all__ = [
     "BIGINT",
