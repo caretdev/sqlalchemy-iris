@@ -915,10 +915,8 @@ class IRISDialect(default.DefaultDialect):
                 )
             else:
                 try:
-                    iris = IRISNative.createIRIS(conn)
-                    self.supports_vectors = iris.classMethodBoolean(
-                        "%SYSTEM.License", "GetFeature", 28
-                    )
+                    conn.execute(text("SELECT TO_VECTOR('1,2,3', INT, 3)"))
+                    self.supports_vectors = True
                 except:  # noqa
                     self.supports_vectors = False
             if self.supports_vectors:
