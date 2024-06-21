@@ -24,19 +24,22 @@ jobs:
         image:
           - intersystemsdc/iris-community:latest
           - intersystemsdc/iris-community:preview
-          - intersystemsdc/iris-community:2024.1-preview
+        engine:
+          - old
+          - new
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
     - name: Install requirements
       run: |
-        pip install -r requirements-dev.txt \
-                    -r requirements-iris.txt \
-                    -e .
+        pip install tox
     - name: Run Tests
       run: |
-        pytest --container ${{ matrix.image }}
-
+        tox -e py311${{ matrix.engine }} -- --container ${{ matrix.image }}
   deploy:
     needs: test
     if: github.event_name != 'pull_request'

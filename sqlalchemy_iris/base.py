@@ -91,7 +91,6 @@ from .types import IRISTime
 from .types import IRISTimeStamp
 from .types import IRISDate
 from .types import IRISDateTime
-from .types import IRISUniqueIdentifier
 from .types import IRISListBuild  # noqa
 from .types import IRISVector  # noqa
 
@@ -819,8 +818,10 @@ colspecs = {
     sqltypes.DateTime: IRISDateTime,
     sqltypes.TIMESTAMP: IRISTimeStamp,
     sqltypes.Time: IRISTime,
-    sqltypes.UUID: IRISUniqueIdentifier,
 }
+if sqlalchemy_version.startswith("2."):
+    from .types import IRISUniqueIdentifier
+    colspecs[sqltypes.UUID] = IRISUniqueIdentifier
 
 
 class IRISExact(ReturnTypeFromArgs):
