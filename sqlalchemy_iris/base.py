@@ -821,6 +821,7 @@ colspecs = {
 }
 if sqlalchemy_version.startswith("2."):
     from .types import IRISUniqueIdentifier
+
     colspecs[sqltypes.UUID] = IRISUniqueIdentifier
 
 
@@ -910,30 +911,22 @@ class IRISDialect(default.DefaultDialect):
             if super_ is not None:
                 super_(conn)
 
-            if self.embedded:
-                self.supports_vectors = (
-                    conn.iris.cls("%SYSTEM.License").GetFeature(28) == 1
-                )
-            else:
-                try:
-                    with conn.cursor() as cursor:
-                        cursor.execute(text("SELECT TO_VECTOR('1,2,3', INT, 3)"))
-                    self.supports_vectors = True
-                except:  # noqa
-                    self.supports_vectors = False
-            if self.supports_vectors:
+            try:
                 with conn.cursor() as cursor:
                     # Distance or similarity
                     cursor.execute(
                         "select vector_cosine(to_vector('1'), to_vector('1'))"
                     )
-                    self.vector_cosine_similarity = cursor.fetchone()[0] == 0
-
+                self.supports_vectors = True
+            except:  # noqa
+                self.supports_vectors = False
             self._dictionary_access = False
             with conn.cursor() as cursor:
                 cursor.execute("%CHECKPRIV SELECT ON %Dictionary.PropertyDefinition")
                 self._dictionary_access = cursor.sqlcode == 0
 
+            if not self.supports_vectors:
+                util.warn("No native support for VECTOR or not activated by license")
             if not self._dictionary_access:
                 util.warn(
                     """
