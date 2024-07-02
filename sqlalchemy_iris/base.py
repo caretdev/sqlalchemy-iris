@@ -105,8 +105,8 @@ ischema_names = {
     "LONGVARCHAR": LONGVARCHAR,
     "NUMERIC": NUMERIC,
     "SMALLINT": SMALLINT,
-    "TIME": TIME,
-    "TIMESTAMP": TIMESTAMP,
+    "TIME": IRISTime,
+    "TIMESTAMP": IRISTimeStamp,
     "TINYINT": TINYINT,
     "VARBINARY": VARBINARY,
     "VARCHAR": VARCHAR,
@@ -925,8 +925,8 @@ class IRISDialect(default.DefaultDialect):
                 cursor.execute("%CHECKPRIV SELECT ON %Dictionary.PropertyDefinition")
                 self._dictionary_access = cursor.sqlcode == 0
 
-            if not self.supports_vectors:
-                util.warn("No native support for VECTOR or not activated by license")
+            # if not self.supports_vectors:
+            #     util.warn("No native support for VECTOR or not activated by license")
             if not self._dictionary_access:
                 util.warn(
                     """

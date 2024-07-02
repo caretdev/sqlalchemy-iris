@@ -58,6 +58,8 @@ class IRISDate(sqltypes.Date):
 
 
 class IRISTimeStamp(sqltypes.DateTime):
+    __visit_name__ = "timestamp"
+
     def bind_processor(self, dialect):
         def process(value: datetime.datetime):
             if value is not None:
@@ -84,6 +86,8 @@ class IRISTimeStamp(sqltypes.DateTime):
 
 
 class IRISDateTime(sqltypes.DateTime):
+    __visit_name__ = "datetime"
+
     def bind_processor(self, dialect):
         def process(value):
             if value is not None:
@@ -106,6 +110,8 @@ class IRISDateTime(sqltypes.DateTime):
 
 
 class IRISTime(sqltypes.DateTime):
+    __visit_name__ = "time"
+
     def bind_processor(self, dialect):
         def process(value):
             if value is not None:
