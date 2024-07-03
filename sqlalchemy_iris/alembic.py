@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.base import Executable
 from sqlalchemy.sql.elements import ClauseElement
+from sqlalchemy.sql.schema import CheckConstraint
 from sqlalchemy.sql.type_api import TypeEngine
 from sqlalchemy.sql import table
 from sqlalchemy import types
@@ -133,6 +134,12 @@ class IRISImpl(DefaultImpl):
             name=name,
             **kw,
         )
+
+    def add_constraint(self, const: Any) -> None:
+        if isinstance(const, CheckConstraint):
+            # just ignore it
+            return
+        super().add_constraint(const)
 
 
 class _ExecDropForeignKey(Executable, ClauseElement):
