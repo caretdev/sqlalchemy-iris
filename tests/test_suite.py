@@ -25,6 +25,30 @@ from sqlalchemy.testing.suite import *  # noqa
 
 from sqlalchemy import __version__ as sqlalchemy_version
 
+if sqlalchemy_version.startswith("2."):
+    from sqlalchemy.testing.suite import (
+        BizarroCharacterFKResolutionTest as _BizarroCharacterFKResolutionTest,
+    )
+
+    class BizarroCharacterFKResolutionTest(_BizarroCharacterFKResolutionTest):
+        @testing.combinations(
+            ("id",), ("(3)",), ("col%p",), ("[brack]",), argnames="columnname"
+        )
+        @testing.variation("use_composite", [True, False])
+        @testing.combinations(
+            ("plain",),
+            # ("(2)",), not in IRIS
+            ("per % cent",),
+            ("[brackets]",),
+            argnames="tablename",
+        )
+        def test_fk_ref(
+            self, connection, metadata, use_composite, tablename, columnname
+        ):
+            super().test_fk_ref(
+                connection, metadata, use_composite, tablename, columnname
+            )
+
 
 class CompoundSelectTest(_CompoundSelectTest):
     @pytest.mark.skip()
@@ -269,175 +293,150 @@ class IRISEnumTest(fixtures.TablesTest):
         )
 
 
-if sqlalchemy_version.startswith("2."):
-    from sqlalchemy.testing.suite import (
-        BizarroCharacterFKResolutionTest as _BizarroCharacterFKResolutionTest,
-    )
+class IRISListBuildTest(fixtures.TablesTest):
+    __backend__ = True
 
-    class BizarroCharacterFKResolutionTest(_BizarroCharacterFKResolutionTest):
-        @testing.combinations(
-            ("id",), ("(3)",), ("col%p",), ("[brack]",), argnames="columnname"
+    @classmethod
+    def define_tables(cls, metadata):
+        Table(
+            "data",
+            metadata,
+            Column("val", IRISListBuild(10, float)),
         )
-        @testing.variation("use_composite", [True, False])
-        @testing.combinations(
-            ("plain",),
-            # ("(2)",), not in IRIS
-            ("per % cent",),
-            ("[brackets]",),
-            argnames="tablename",
+
+    @classmethod
+    def fixtures(cls):
+        return dict(
+            data=(
+                ("val",),
+                ([1.0] * 50,),
+                ([1.23] * 50,),
+                ([i for i in range(0, 50)],),
+                (None,),
+            )
         )
-        def test_fk_ref(
-            self, connection, metadata, use_composite, tablename, columnname
-        ):
-            super().test_fk_ref(
-                connection, metadata, use_composite, tablename, columnname
-            )
 
-    class IRISListBuildTest(fixtures.TablesTest):
-        __backend__ = True
+    def _assert_result(self, select, result):
+        with config.db.connect() as conn:
+            eq_(conn.execute(select).fetchall(), result)
 
-        @classmethod
-        def define_tables(cls, metadata):
-            Table(
-                "data",
-                metadata,
-                Column("val", IRISListBuild(10, float)),
-            )
+    def test_listbuild(self):
+        self._assert_result(
+            select(self.tables.data),
+            [
+                ([1.0] * 50,),
+                ([1.23] * 50,),
+                ([i for i in range(0, 50)],),
+                (None,),
+            ],
+        )
+        self._assert_result(
+            select(self.tables.data).where(self.tables.data.c.val == [1.0] * 50),
+            [
+                ([1.0] * 50,),
+            ],
+        )
 
-        @classmethod
-        def fixtures(cls):
-            return dict(
-                data=(
-                    ("val",),
-                    ([1.0] * 50,),
-                    ([1.23] * 50,),
-                    ([i for i in range(0, 50)],),
-                    (None,),
-                )
-            )
+        self._assert_result(
+            select(
+                self.tables.data,
+                self.tables.data.c.val.func("$listsame", [1.0] * 50).label("same"),
+            ).limit(1),
+            [
+                ([1.0] * 50, 1),
+            ],
+        )
 
-        def _assert_result(self, select, result):
-            with config.db.connect() as conn:
-                eq_(conn.execute(select).fetchall(), result)
 
-        def test_listbuild(self):
-            self._assert_result(
-                select(self.tables.data),
-                [
-                    ([1.0] * 50,),
-                    ([1.23] * 50,),
-                    ([i for i in range(0, 50)],),
-                    (None,),
-                ],
-            )
-            self._assert_result(
-                select(self.tables.data).where(self.tables.data.c.val == [1.0] * 50),
-                [
-                    ([1.0] * 50,),
-                ],
-            )
+class IRISVectorTest(fixtures.TablesTest):
+    __backend__ = True
 
-            self._assert_result(
-                select(
-                    self.tables.data,
-                    self.tables.data.c.val.func("$listsame", [1.0] * 50).label("same"),
-                ).limit(1),
-                [
-                    ([1.0] * 50, 1),
-                ],
-            )
+    __requires__ = ("iris_vector",)
 
-    class IRISVectorTest(fixtures.TablesTest):
-        __backend__ = True
+    @classmethod
+    def define_tables(cls, metadata):
+        Table(
+            "data",
+            metadata,
+            Column("id", INTEGER),
+            Column("emb", IRISVector(3, float)),
+        )
 
-        __requires__ = ("iris_vector",)
-
-        @classmethod
-        def define_tables(cls, metadata):
-            Table(
-                "data",
-                metadata,
-                Column("id", INTEGER),
-                Column("emb", IRISVector(3, float)),
-            )
-
-        @classmethod
-        def fixtures(cls):
-            return dict(
-                data=(
-                    (
-                        "id",
-                        "emb",
-                    ),
-                    (
-                        1,
-                        [1, 1, 1],
-                    ),
-                    (
-                        2,
-                        [2, 2, 2],
-                    ),
-                    (
-                        3,
-                        [1, 1, 2],
-                    ),
-                )
-            )
-
-        def _assert_result(self, select, result):
-            with config.db.connect() as conn:
-                eq_(conn.execute(select).fetchall(), result)
-
-        def test_vector(self):
-            self._assert_result(
-                select(self.tables.data.c.emb),
-                [
-                    ([1, 1, 1],),
-                    ([2, 2, 2],),
-                    ([1, 1, 2],),
-                ],
-            )
-            self._assert_result(
-                select(self.tables.data.c.id).where(
-                    self.tables.data.c.emb == [2, 2, 2]
+    @classmethod
+    def fixtures(cls):
+        return dict(
+            data=(
+                (
+                    "id",
+                    "emb",
                 ),
-                [
-                    (2,),
-                ],
+                (
+                    1,
+                    [1, 1, 1],
+                ),
+                (
+                    2,
+                    [2, 2, 2],
+                ),
+                (
+                    3,
+                    [1, 1, 2],
+                ),
             )
+        )
 
-        def test_cosine(self):
-            self._assert_result(
-                select(
-                    self.tables.data.c.id,
-                ).order_by(self.tables.data.c.emb.cosine([1, 1, 1])),
-                [
-                    (1,),
-                    (2,),
-                    (3,),
-                ],
-            )
+    def _assert_result(self, select, result):
+        with config.db.connect() as conn:
+            eq_(conn.execute(select).fetchall(), result)
 
-        def test_cosine_distance(self):
-            self._assert_result(
-                select(
-                    self.tables.data.c.id,
-                ).order_by(1 - self.tables.data.c.emb.cosine_distance([1, 1, 1])),
-                [
-                    (1,),
-                    (2,),
-                    (3,),
-                ],
-            )
+    def test_vector(self):
+        self._assert_result(
+            select(self.tables.data.c.emb),
+            [
+                ([1, 1, 1],),
+                ([2, 2, 2],),
+                ([1, 1, 2],),
+            ],
+        )
+        self._assert_result(
+            select(self.tables.data.c.id).where(self.tables.data.c.emb == [2, 2, 2]),
+            [
+                (2,),
+            ],
+        )
 
-        def test_max_inner_product(self):
-            self._assert_result(
-                select(
-                    self.tables.data.c.id,
-                ).order_by(self.tables.data.c.emb.max_inner_product([1, 1, 1])),
-                [
-                    (1,),
-                    (3,),
-                    (2,),
-                ],
-            )
+    def test_cosine(self):
+        self._assert_result(
+            select(
+                self.tables.data.c.id,
+            ).order_by(self.tables.data.c.emb.cosine([1, 1, 1])),
+            [
+                (1,),
+                (2,),
+                (3,),
+            ],
+        )
+
+    def test_cosine_distance(self):
+        self._assert_result(
+            select(
+                self.tables.data.c.id,
+            ).order_by(1 - self.tables.data.c.emb.cosine_distance([1, 1, 1])),
+            [
+                (1,),
+                (2,),
+                (3,),
+            ],
+        )
+
+    def test_max_inner_product(self):
+        self._assert_result(
+            select(
+                self.tables.data.c.id,
+            ).order_by(self.tables.data.c.emb.max_inner_product([1, 1, 1])),
+            [
+                (1,),
+                (3,),
+                (2,),
+            ],
+        )
