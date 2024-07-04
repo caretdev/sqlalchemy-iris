@@ -9,10 +9,11 @@ from sqlalchemy.testing.assertions import eq_
 from sqlalchemy.testing import config
 from sqlalchemy.orm import Session
 from sqlalchemy import testing
-from sqlalchemy import Table, Column, select
+from sqlalchemy import Table, Column, select, func
 from sqlalchemy.types import Integer
 from sqlalchemy.types import String
 from sqlalchemy.types import VARBINARY
+from sqlalchemy.types import TEXT
 from sqlalchemy.types import BINARY
 from sqlalchemy_iris import TINYINT
 from sqlalchemy_iris import INTEGER
@@ -438,5 +439,50 @@ class IRISVectorTest(fixtures.TablesTest):
                 (1,),
                 (3,),
                 (2,),
+            ],
+        )
+
+
+class ConcatTest(fixtures.TablesTest):
+    __backend__ = True
+
+    @classmethod
+    def define_tables(cls, metadata):
+        Table(
+            "data",
+            metadata,
+            Column("sometext", TEXT),
+            Column("testdata", TEXT),
+        )
+
+    @classmethod
+    def fixtures(cls):
+        return dict(
+            data=(
+                (
+                    "sometext",
+                    "testdata",
+                ),
+                (
+                    "sometestdata",
+                    "test",
+                ),
+            )
+        )
+
+    def _assert_result(self, select, result):
+        with config.db.connect() as conn:
+            eq_(conn.execute(select).fetchall(), result)
+
+    def test_concat_func(self):
+        self._assert_result(
+            select(
+                self.tables.data.c.sometext,
+            ).filter(
+                self.tables.data.c.sometext
+                == func.concat("some", self.tables.data.c.testdata, "data")
+            ),
+            [
+                ("sometestdata",),
             ],
         )

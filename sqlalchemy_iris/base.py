@@ -591,6 +591,12 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             self.process(binary.right, **kw),
         )
 
+    def visit_concat_func(
+        self, func, **kw
+    ):
+        args = [self.process(clause, **kw) for clause in func.clauses.clauses]
+        return ' || '.join(args)
+
     def visit_mod_binary(self, binary, operator, **kw):
         return (
             self.process(binary.left, **kw) + " # " + self.process(binary.right, **kw)
@@ -954,6 +960,11 @@ There are no access to %Dictionary, may be required for some advanced features,
             if row:
                 return row[0]
         return None
+
+    def get_isolation_level_values(self, dbapi_connection):
+        levels = set(self._isolation_lookup)
+        levels.add("AUTOCOMMIT")
+        return levels
 
     def get_isolation_level(self, connection):
         try:
