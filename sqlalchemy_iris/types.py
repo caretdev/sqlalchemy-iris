@@ -58,7 +58,7 @@ class IRISDate(sqltypes.Date):
 
 
 class IRISTimeStamp(sqltypes.DateTime):
-    __visit_name__ = "timestamp"
+    __visit_name__ = "TIMESTAMP"
 
     def bind_processor(self, dialect):
         def process(value: datetime.datetime):
@@ -86,7 +86,7 @@ class IRISTimeStamp(sqltypes.DateTime):
 
 
 class IRISDateTime(sqltypes.DateTime):
-    __visit_name__ = "datetime"
+    __visit_name__ = "DATETIME"
 
     def bind_processor(self, dialect):
         def process(value):
@@ -110,7 +110,7 @@ class IRISDateTime(sqltypes.DateTime):
 
 
 class IRISTime(sqltypes.DateTime):
-    __visit_name__ = "time"
+    __visit_name__ = "TIME"
 
     def bind_processor(self, dialect):
         def process(value):
