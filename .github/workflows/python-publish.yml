@@ -22,12 +22,20 @@ jobs:
       fail-fast: false
       matrix:
         image:
-          - intersystemsdc/iris-community:latest
-          - intersystemsdc/iris-community:preview
+          - containers.intersystems.com/intersystems/iris-community:latest-cd
+          - containers.intersystems.com/intersystems/iris-community:latest-preview
         engine:
           - old
           - new
     runs-on: ubuntu-latest
+    services:
+      iris:
+        image: ${{ matrix.image }}
+        ports:
+        - 1972:1972
+        options: >-
+          --name iris
+          --health-cmd "/usr/irissys/dev/Cloud/ICM/waitReady.sh -m 1"
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
@@ -39,7 +47,8 @@ jobs:
         pip install tox
     - name: Run Tests
       run: |
-        tox -e py311${{ matrix.engine }} -- --container ${{ matrix.image }}
+        docker exec iris iris session iris -U%SYS '##class(Security.Users).UnExpireUserPasswords("*")'
+        tox -e py311${{ matrix.engine }} -- --dburi iris://_SYSTEM:SYS@localhost:1972/USER
   deploy:
     needs: test
     if: github.event_name != 'pull_request'
