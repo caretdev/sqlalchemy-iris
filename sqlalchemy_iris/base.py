@@ -570,7 +570,7 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             if limit_clause is not None:
                 limitselect = limitselect.where(
                     between(iris_rn, offset_clause + 1, limit_clause + offset_clause)
-                )
+                ).order_by(iris_rn)
             else:
                 limitselect = limitselect.where(iris_rn > offset_clause)
         else:
