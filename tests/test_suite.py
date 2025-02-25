@@ -2,6 +2,8 @@ from enum import Enum
 
 from sqlalchemy.testing.suite import FetchLimitOffsetTest as _FetchLimitOffsetTest
 from sqlalchemy.testing.suite import CompoundSelectTest as _CompoundSelectTest
+from sqlalchemy.testing.suite import TableDDLTest as _TableDDLTest
+from sqlalchemy.testing.suite import FutureTableDDLTest as _FutureTableDDLTest
 from sqlalchemy.testing.suite import CTETest as _CTETest
 from sqlalchemy.testing.suite import DifficultParametersTest as _DifficultParametersTest
 from sqlalchemy.testing import fixtures
@@ -63,9 +65,19 @@ class CTETest(_CTETest):
         pass
 
 
-@pytest.mark.skip()
 class DifficultParametersTest(_DifficultParametersTest):
-    pass
+
+    tough_parameters = _DifficultParametersTest.tough_parameters
+
+    @tough_parameters
+    def test_round_trip_same_named_column(
+        self, paramname, connection, metadata
+    ):
+        if paramname == 'dot.s':
+            # not supported
+            pytest.skip()
+            return
+        super().test_round_trip_same_named_column(paramname, connection, metadata)
 
 
 class FetchLimitOffsetTest(_FetchLimitOffsetTest):
@@ -486,3 +498,21 @@ class ConcatTest(fixtures.TablesTest):
                 ("sometestdata",),
             ],
         )
+
+
+class TableDDLTest(_TableDDLTest):
+    # IRIS does not want to update comments on the fly
+    def test_add_table_comment(self, connection):
+        pass
+
+    def test_drop_table_comment(self, connection):
+        pass
+
+
+class FutureTableDDLTest(_FutureTableDDLTest):
+    # IRIS does not want to update comments on the fly
+    def test_add_table_comment(self, connection):
+        pass
+
+    def test_drop_table_comment(self, connection):
+        pass

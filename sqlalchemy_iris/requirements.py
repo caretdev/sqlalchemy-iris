@@ -59,6 +59,22 @@ class Requirements(SuiteRequirements, AlembicRequirements):
         return exclusions.open()
 
     @property
+    def reflect_table_options(self):
+        return exclusions.open()
+
+    @property
+    def comment_reflection(self):
+        return exclusions.open()
+
+    @property
+    def insert_returning(self):
+        return exclusions.open()
+
+    @property
+    def unusual_column_name_characters(self):
+        return exclusions.open()
+
+    @property
     def computed_columns(self):
         "Supports computed columns"
         return exclusions.open()

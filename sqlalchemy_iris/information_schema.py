@@ -44,6 +44,7 @@ tables = Table(
     Column("TABLE_NAME", String, key="table_name"),
     Column("TABLE_TYPE", String, key="table_type"),
     Column("CLASSNAME", String, key="classname"),
+    Column("DESCRIPTION", String, key="description"),
     schema="INFORMATION_SCHEMA",
 )
 
@@ -69,7 +70,7 @@ columns = Table(
     Column("AUTO_INCREMENT", YESNO, key="auto_increment"),
     Column("UNIQUE_COLUMN", YESNO, key="unique_column"),
     Column("PRIMARY_KEY", YESNO, key="primary_key"),
-    Column("DESCIPTION", String, key="desciption"),
+    Column("DESCRIPTION", String, key="description"),
     schema="INFORMATION_SCHEMA",
 )
 property_definition = Table(

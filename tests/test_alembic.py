@@ -70,7 +70,9 @@ else:
             self.meta.drop_all(connection)
 
         def test_drop_col_with_fk(self, ops_context, connection, tables):
-            ops_context.drop_column("round_trip_table", "oid_fk", schema=self.meta.schema)
+            ops_context.drop_column(
+                "round_trip_table", "oid_fk", schema=self.meta.schema
+            )
             insp = inspect(connection)
             eq_(insp.get_foreign_keys("round_trip_table", schema=self.meta.schema), [])
 
@@ -112,9 +114,9 @@ else:
 
             result = connection.execute(text("select col from tab")).all()
             assert result == [
-                (bytearray(b"'some data 1'"),),
-                (bytearray(b"'some data 2'"),),
-                (bytearray(b"'some data 3'"),),
+                (b"some data 1",),
+                (b"some data 2",),
+                (b"some data 3",),
             ]
 
             insp = inspect(connection)

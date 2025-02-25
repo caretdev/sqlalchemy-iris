@@ -653,6 +653,20 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
     def visit_check_constraint(self, constraint, **kw):
         pass
 
+    def create_table_constraints(self, table, **kw):
+        description = ""
+        comment = table.comment
+        if comment:
+            # hack to keep \r, kind of
+            comment = comment.replace('\r', '\n\t')
+            literal = self.sql_compiler.render_literal_value(comment, sqltypes.String())
+            description = "%DESCRIPTION " + literal
+
+        constraints = super().create_table_constraints(table, **kw)
+        if constraints and description:
+            description = ", \n\t" + description
+        return constraints + description
+
     def visit_add_constraint(self, create, **kw):
         if isinstance(create.element, schema.CheckConstraint):
             raise exc.CompileError("Can't add CHECK constraint")
@@ -701,6 +715,7 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
 
         comment = column.comment
         if comment is not None:
+            comment = comment.replace('\r', '\n\t')
             literal = self.sql_compiler.render_literal_value(comment, sqltypes.String())
             colspec.append("%DESCRIPTION " + literal)
 
@@ -882,6 +897,12 @@ class IRISDialect(default.DefaultDialect):
     preparer = IRISIdentifierPreparer
     type_compiler = IRISTypeCompiler
     execution_ctx_cls = IRISExecutionContext
+
+    insert_returning = True
+    insert_executemany_returning = True
+    insert_executemany_returning_sort_by_parameter_order = True
+    update_executemany_returning = False
+    delete_executemany_returning = False
 
     construct_arguments = [
         (schema.Index, {"include": None}),
@@ -1106,6 +1127,38 @@ There are no access to %Dictionary, may be required for some advanced features,
         return schema
 
     @reflection.cache
+    def get_table_options(self, connection, table_name, schema=None, **kw):
+        if not self.has_table(connection=connection, table_name=table_name, schema=schema):
+            raise exc.NoSuchTableError(
+                f"{schema}.{table_name}" if schema else table_name
+            ) from None
+        return {}
+
+    @reflection.cache
+    def get_table_comment(self, connection, table_name, schema=None, **kw):
+        if not self.has_table(connection=connection, table_name=table_name, schema=schema):
+            raise exc.NoSuchTableError(
+                f"{schema}.{table_name}" if schema else table_name
+            ) from None
+
+        tables = ischema.tables
+        schema_name = self.get_schema(schema)
+
+        s = sql.select(tables.c.description).where(
+            sql.and_(
+                tables.c.table_schema == str(schema_name),
+                tables.c.table_name == str(table_name),
+            )
+        )
+        comment = connection.execute(s).scalar()
+        if comment:
+            # make it as \r
+            comment = comment.replace(' \t\t\t\t', '\r')
+            # restore \n
+            comment = comment.replace(' \t\t\t', '\n')
+        return {"text": comment}
+
+    @reflection.cache
     def get_schema_names(self, connection, **kw):
         s = sql.select(ischema.schemata.c.schema_name).order_by(
             ischema.schemata.c.schema_name
@@ -1131,7 +1184,7 @@ There are no access to %Dictionary, may be required for some advanced features,
         return table_names
 
     @reflection.cache
-    def get_temp_table_names(self, connection, dblink=None, **kw):
+    def get_temp_table_names(self, connection, **kw):
         tables = ischema.tables
         s = (
             sql.select(tables.c.table_name)
@@ -1598,6 +1651,7 @@ There are no access to %Dictionary, may be required for some advanced features,
                 columns.c.column_default,
                 columns.c.collation_name,
                 columns.c.auto_increment,
+                columns.c.description,
             )
             .select_from(columns)
             .where(
@@ -1650,7 +1704,12 @@ There are no access to %Dictionary, may be required for some advanced features,
                 sqlComputeCode = row[property.c.SqlComputeCode]
                 calculated = row[property.c.Calculated]
                 transient = row[property.c.Transient]
-            # description = row[columns.c.description]
+            comment = row[columns.c.description]
+            if comment:
+                # make it as \r
+                comment = comment.replace(' \t\t\t\t', '\r')
+                # restore \n
+                comment = comment.replace(' \t\t\t', '\n')
 
             coltype = self.ischema_names.get(type_, None)
 
@@ -1696,7 +1755,7 @@ There are no access to %Dictionary, may be required for some advanced features,
                 "nullable": nullable,
                 "default": default,
                 "autoincrement": autoincrement,
-                # "comment": description,
+                "comment": comment,
             }
             if sqlComputeCode and "set {*} = " in sqlComputeCode.lower():
                 sqltext = sqlComputeCode

@@ -1,6 +1,7 @@
 from sqlalchemy.dialects import registry
 import pytest
 import time
+import os
 
 from sqlalchemy.testing.plugin.plugin_base import pre
 
@@ -46,6 +47,7 @@ def start_container(opt, file_config):
         username="sqlalchemy",
         password="sqlalchemy",
         namespace="TEST",
+        license_key=os.path.expanduser("~/iris.key") if "community" not in opt.container else None,
     )
     iris.start()
     print("dburi:", iris.get_connection_url())
@@ -54,6 +56,6 @@ def start_container(opt, file_config):
 
 def pytest_unconfigure(config):
     global iris
-    if iris:
-        print("Stopping IRIS container")
+    if iris and iris._container:
+        print("Stopping IRIS container", iris)
         iris.stop()
