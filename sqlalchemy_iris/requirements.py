@@ -15,6 +15,7 @@ from sqlalchemy.testing import exclusions
 
 
 class Requirements(SuiteRequirements, AlembicRequirements):
+
     @property
     def array_type(self):
         return exclusions.closed()
@@ -68,11 +69,10 @@ class Requirements(SuiteRequirements, AlembicRequirements):
 
     @property
     def insert_returning(self):
-        return exclusions.open()
-
-    @property
-    def unusual_column_name_characters(self):
-        return exclusions.open()
+        return exclusions.skip_if(
+            lambda config: not config.db.dialect.insert_returning,
+            "driver doesn't support insert returning",
+        )
 
     @property
     def computed_columns(self):
@@ -211,8 +211,10 @@ class Requirements(SuiteRequirements, AlembicRequirements):
     @property
     def ctes(self):
         """Target database supports CTEs"""
-
-        return exclusions.open()
+        return exclusions.skip_if(
+            lambda config: not config.db.dialect.supports_cte,
+            "driver doesn't support CTEs",
+        )
 
     @property
     def ctes_with_update_delete(self):

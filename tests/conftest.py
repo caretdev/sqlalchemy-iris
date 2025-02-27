@@ -1,6 +1,5 @@
 from sqlalchemy.dialects import registry
 import pytest
-import time
 import os
 
 from sqlalchemy.testing.plugin.plugin_base import pre
@@ -12,12 +11,15 @@ registry.register("iris.emb", "sqlalchemy_iris.embedded", "IRISDialect_emb")
 registry.register(
     "iris.irisasync", "sqlalchemy_iris.irisasync", "IRISDialect_irisasync"
 )
+registry.register(
+    "iris.intersystems", "sqlalchemy_iris.intersystems", "IRISDialect_intersystems"
+)
 
 pytest.register_assert_rewrite("sqlalchemy.testing.assertions")
 
 from sqlalchemy.testing.plugin.pytestplugin import *  # noqa
 
-original_pytest_addoption = pytest_addoption
+original_pytest_addoption = pytest_addoption # noqa
 
 
 def pytest_addoption(parser):
@@ -31,6 +33,14 @@ def pytest_addoption(parser):
         default=None,
         type=str,
         help="Docker image with IRIS",
+    )
+
+    group.addoption(
+        "--driver",
+        action="store",
+        default=None,
+        type=str,
+        help="Driver",
     )
 
 
@@ -47,11 +57,18 @@ def start_container(opt, file_config):
         username="sqlalchemy",
         password="sqlalchemy",
         namespace="TEST",
-        license_key=os.path.expanduser("~/iris.key") if "community" not in opt.container else None,
+        license_key=(
+            os.path.expanduser("~/iris.key")
+            if "community" not in opt.container
+            else None
+        ),
     )
     iris.start()
-    print("dburi:", iris.get_connection_url())
-    opt.dburi = [iris.get_connection_url()]
+    dburi = iris.get_connection_url()
+    if opt.driver:
+        dburi = dburi.replace("iris://", f"iris+{opt.driver}://")
+    print("dburi:", dburi)
+    opt.dburi = [dburi]
 
 
 def pytest_unconfigure(config):

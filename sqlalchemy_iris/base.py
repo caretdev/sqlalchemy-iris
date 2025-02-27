@@ -1,6 +1,6 @@
 import re
+from decimal import Decimal
 import intersystems_iris.dbapi._DBAPI as dbapi
-import intersystems_iris._IRISNative as IRISNative
 from . import information_schema as ischema
 from sqlalchemy import exc
 from sqlalchemy.orm import aliased
@@ -888,6 +888,8 @@ class IRISDialect(default.DefaultDialect):
 
     supports_vectors = None
 
+    supports_cte = True
+
     colspecs = colspecs
 
     ischema_names = ischema_names
@@ -949,8 +951,8 @@ class IRISDialect(default.DefaultDialect):
                 self.supports_vectors = False
             self._dictionary_access = False
             with conn.cursor() as cursor:
-                cursor.execute("%CHECKPRIV SELECT ON %Dictionary.PropertyDefinition")
-                self._dictionary_access = cursor.sqlcode == 0
+                res = cursor.execute("%CHECKPRIV SELECT ON %Dictionary.PropertyDefinition")
+                self._dictionary_access = res == 0
 
             # if not self.supports_vectors:
             #     util.warn("No native support for VECTOR or not activated by license")
@@ -1061,14 +1063,14 @@ There are no access to %Dictionary, may be required for some advanced features,
     _debug_queries = False
     # _debug_queries = True
 
-    def _debug(self, query, params, many=False):
-        from decimal import Decimal
-
+    def _debug(self, query, params, many=False, wrap=True):
         if not self._debug_queries:
             return
         if many:
+            print("-" * 120)
             for p in params:
-                self._debug(query, p)
+                self._debug(query, p, wrap=False)
+            print("-" * 120)
             return
         for p in params:
             if isinstance(p, Decimal):
@@ -1078,21 +1080,11 @@ There are no access to %Dictionary, may be required for some advanced features,
             else:
                 v = "%r" % (p,)
             query = query.replace("?", v, 1)
-        print("--")
+        if wrap:
+            print("-" * 120)
         print(query + ";")
-        print("--")
-
-    def _debug_pre(self, query, params, many=False):
-        print("-- do_execute" + "many" if many else "")
-        if not self._debug_queries:
-            return
-        for line in query.split("\n"):
-            print("-- ", line)
-        if many:
-            print(params)
-        else:
-            for p in params:
-                print("-- @param = %r" % (p,))
+        if wrap:
+            print("-" * 120)
 
     def do_execute(self, cursor, query, params, context=None):
         if query.endswith(";"):
@@ -1746,8 +1738,10 @@ There are no access to %Dictionary, may be required for some advanced features,
                 coltype = coltype(**kwargs)
 
             default = "" if default == "$c(0)" else default
-            if default and default.startswith('"'):
-                default = "'%s'" % (default[1:-1].replace("'", "''"),)
+            if default:
+                default = str(default)
+                if default.startswith('"'):
+                    default = "'%s'" % (default[1:-1].replace("'", "''"),)
 
             cdict = {
                 "name": name,
