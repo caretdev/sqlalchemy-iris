@@ -22,8 +22,8 @@ jobs:
       fail-fast: false
       matrix:
         image:
-          - containers.intersystems.com/intersystems/iris-community:latest-cd
-          - containers.intersystems.com/intersystems/iris-community:latest-preview
+          - latest-cd
+          - latest-preview
         engine:
           - old
           - new
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       iris:
-        image: ${{ matrix.image }}
+        image: containers.intersystems.com/intersystems/iris-community:${{ matrix.image }}
         ports:
         - 1972:1972
         options: >-

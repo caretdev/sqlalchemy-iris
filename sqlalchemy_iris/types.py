@@ -56,6 +56,14 @@ class IRISDate(sqltypes.Date):
 
         return process
 
+    def literal_processor(self, dialect):
+        def process(value):
+            if isinstance(value, datetime.date):
+                return "'%s'" % value.strftime("%Y-%m-%d")
+            return value
+
+        return process
+
 
 class IRISTimeStamp(sqltypes.DateTime):
     __visit_name__ = "TIMESTAMP"
@@ -84,6 +92,14 @@ class IRISTimeStamp(sqltypes.DateTime):
 
         return process
 
+    def literal_processor(self, dialect):
+        def process(value):
+            if isinstance(value, datetime.datetime):
+                return "'%s'" % value.strftime("%Y-%m-%d %H:%M:%S.%f")
+            return value
+
+        return process
+
 
 class IRISDateTime(sqltypes.DateTime):
     __visit_name__ = "DATETIME"
@@ -104,6 +120,14 @@ class IRISDateTime(sqltypes.DateTime):
                 if "." not in value:
                     value += ".0"
                 return datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S.%f")
+            return value
+
+        return process
+
+    def literal_processor(self, dialect):
+        def process(value):
+            if isinstance(value, datetime.datetime):
+                return "'%s'" % value.strftime("%Y-%m-%d %H:%M:%S.%f")
             return value
 
         return process
@@ -136,6 +160,14 @@ class IRISTime(sqltypes.DateTime):
                 second = int(horolog % 60)
                 micro = int(value % 1 * 1000000)
                 return datetime.time(hour, minute, second, micro)
+            return value
+
+        return process
+
+    def literal_processor(self, dialect):
+        def process(value):
+            if isinstance(value, datetime.time):
+                return "'%s'" % value.strftime("%H:%M:%S.%f")
             return value
 
         return process
