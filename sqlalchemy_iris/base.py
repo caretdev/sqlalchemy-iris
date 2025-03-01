@@ -900,6 +900,7 @@ class IRISDialect(default.DefaultDialect):
     type_compiler = IRISTypeCompiler
     execution_ctx_cls = IRISExecutionContext
 
+    update_returning = False
     insert_returning = True
     insert_executemany_returning = True
     insert_executemany_returning_sort_by_parameter_order = True
@@ -1090,7 +1091,10 @@ There are no access to %Dictionary, may be required for some advanced features,
         if query.endswith(";"):
             query = query[:-1]
         self._debug(query, params)
-        cursor.execute(query, params)
+        try:
+            cursor.execute(query, params)
+        except Exception as ex:
+            raise ex
 
     def do_executemany(self, cursor, query, params, context=None):
         if query.endswith(";"):

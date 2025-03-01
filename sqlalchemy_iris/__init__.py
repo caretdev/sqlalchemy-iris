@@ -4,11 +4,11 @@ from . import base
 from . import iris
 
 try:
-    import alembic
+    import alembic # noqa
 except ImportError:
     pass
 else:
-    from .alembic import IRISImpl
+    from .alembic import IRISImpl # noqa
 
 from .base import BIGINT
 from .base import BIT
@@ -32,6 +32,7 @@ base.dialect = dialect = iris.dialect
 _registry.register("iris.iris", "sqlalchemy_iris.iris", "IRISDialect_iris")
 _registry.register("iris.emb", "sqlalchemy_iris.embedded", "IRISDialect_emb")
 _registry.register("iris.irisasync", "sqlalchemy_iris.irisasync", "IRISDialect_irisasync")
+_registry.register("iris.intersystems", "sqlalchemy_iris.intersystems", "IRISDialect_intersystems")
 
 __all__ = [
     "BIGINT",

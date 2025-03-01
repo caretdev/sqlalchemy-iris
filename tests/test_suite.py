@@ -22,6 +22,8 @@ from sqlalchemy_iris import INTEGER
 from sqlalchemy_iris import IRISListBuild
 from sqlalchemy_iris import IRISVector
 from sqlalchemy.exc import DatabaseError
+from sqlalchemy.testing.config import requirements
+
 import pytest
 
 from sqlalchemy.testing.suite import *  # noqa
@@ -70,10 +72,8 @@ class DifficultParametersTest(_DifficultParametersTest):
     tough_parameters = _DifficultParametersTest.tough_parameters
 
     @tough_parameters
-    def test_round_trip_same_named_column(
-        self, paramname, connection, metadata
-    ):
-        if paramname == 'dot.s':
+    def test_round_trip_same_named_column(self, paramname, connection, metadata):
+        if paramname == "dot.s":
             # not supported
             pytest.skip()
             return

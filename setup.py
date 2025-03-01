@@ -9,6 +9,7 @@ setup(
             "iris = sqlalchemy_iris.iris:IRISDialect_iris",
             "iris.emb = sqlalchemy_iris.embedded:IRISDialect_emb",
             "iris.irisasync = sqlalchemy_iris.irisasync:IRISDialect_irisasync",
+            "iris.intersystems = sqlalchemy_iris.intersystems:IRISDialect_intersystems",
         ]
     },
 )

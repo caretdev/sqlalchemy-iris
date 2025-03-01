@@ -13,6 +13,12 @@ will install them if they are not already in place. To install, just:
 pip install sqlalchemy-iris
 ```
 
+Or to use InterSystems official driver support
+
+```shell
+pip install sqlalchemy-iris[intersystems]
+```
+
 Usage
 ---
 
@@ -21,6 +27,20 @@ In your Python app, you can connect to the database via:
 ```python
 from sqlalchemy import create_engine
 engine = create_engine("iris://_SYSTEM:SYS@localhost:1972/USER")
+```
+
+To use with Python Embedded mode, when run next to IRIS
+
+```python
+from sqlalchemy import create_engine
+engine = create_engine("iris+emb:///USER")
+```
+
+To use with InterSystems official driver, does not work in Python Embedded mode
+
+```python
+from sqlalchemy import create_engine
+engine = create_engine("iris+intersystems://_SYSTEM:SYS@localhost:1972/USER")
 ```
 
 IRIS Cloud SQL requires SSLContext
