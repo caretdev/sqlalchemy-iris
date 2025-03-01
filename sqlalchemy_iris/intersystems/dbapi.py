@@ -15,6 +15,10 @@ def connect(*args, **kwargs):
     return iris.connect(*args, **kwargs)
 
 
+def createIRIS(*args, **kwargs):
+    return iris.createIRIS(*args, **kwargs)
+
+
 # globals
 apilevel = "2.0"
 threadsafety = 0

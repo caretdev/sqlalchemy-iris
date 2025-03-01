@@ -1,5 +1,4 @@
 import re
-import pkg_resources
 from ..base import IRISDialect
 from sqlalchemy import text, util
 from ..base import IRISExecutionContext
@@ -62,6 +61,8 @@ class IRISDialect_intersystems(IRISDialect):
 
     logfile = None
 
+    server_version = None
+
     def __init__(self, logfile: str = None, **kwargs):
         self.logfile = logfile
         IRISDialect.__init__(self, **kwargs)
@@ -115,19 +116,21 @@ class IRISDialect_intersystems(IRISDialect):
 
         return ([], opts)
 
+    def on_connect(self):
+        super_ = super().on_connect()
+
+        def on_connect(conn):
+            if super_ is not None:
+                super_(conn)
+
+                server_version = dbapi.createIRIS(conn).classMethodValue("%SYSTEM.Version", "GetNumber")
+                server_version = server_version.split(".")
+                self.server_version = tuple([int("".join(filter(str.isdigit, v))) for v in server_version])
+
+        return on_connect
+
     def _get_server_version_info(self, connection):
-        # get the wheel version from iris module
-        try:
-            return tuple(
-                map(
-                    int,
-                    pkg_resources.get_distribution(
-                        "intersystems_irispython"
-                    ).version.split("."),
-                )
-            )
-        except:  # noqa
-            return None
+        return self.server_version
 
     def _get_option(self, connection, option):
         with connection.cursor() as cursor:
