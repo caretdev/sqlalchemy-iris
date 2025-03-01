@@ -1091,10 +1091,7 @@ There are no access to %Dictionary, may be required for some advanced features,
         if query.endswith(";"):
             query = query[:-1]
         self._debug(query, params)
-        try:
-            cursor.execute(query, params)
-        except Exception as ex:
-            raise ex
+        cursor.execute(query, params)
 
     def do_executemany(self, cursor, query, params, context=None):
         if query.endswith(";"):

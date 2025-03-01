@@ -93,14 +93,18 @@ else:
         @classmethod
         def insert_data(cls, connection):
             connection.execute(
-                text(
-                    """
-                    insert into tab (col) values
-                        ('some data 1'),
-                        ('some data 2'),
-                        ('some data 3')
-                """
-                )
+                cls.tables.tab.insert(),
+                [
+                    {
+                        "col": "some data 1",
+                    },
+                    {
+                        "col": "some data 2",
+                    },
+                    {
+                        "col": "some data 3",
+                    },
+                ],
             )
 
         def test_str_to_blob(self, connection, ops_context):

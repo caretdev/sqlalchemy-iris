@@ -22,7 +22,6 @@ from sqlalchemy_iris import INTEGER
 from sqlalchemy_iris import IRISListBuild
 from sqlalchemy_iris import IRISVector
 from sqlalchemy.exc import DatabaseError
-from sqlalchemy.testing.config import requirements
 
 import pytest
 

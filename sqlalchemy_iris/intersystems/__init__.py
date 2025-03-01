@@ -1,11 +1,11 @@
 import re
+from typing import Any
 from ..base import IRISDialect
-from sqlalchemy import text, util
 from ..base import IRISExecutionContext
 from . import dbapi
-from .dbapi import connect, Cursor
-from .cursor import InterSystemsCursorFetchStrategy
+from .dbapi import connect
 from .dbapi import IntegrityError, OperationalError, DatabaseError
+from sqlalchemy.engine.cursor import CursorFetchStrategy
 
 
 def remap_exception(func):
@@ -19,7 +19,7 @@ def remap_exception(func):
             except RuntimeError as ex:
                 # [SQLCODE: <-119>:...
                 message = ex.args[0]
-                if '<LIST ERROR>' in message:
+                if "<LIST ERROR>" in message:
                     # just random error happens in the driver, try again
                     continue
                 sqlcode = re.findall(r"^\[SQLCODE: <(-\d+)>:", message)
@@ -27,12 +27,24 @@ def remap_exception(func):
                     raise Exception(message)
                 sqlcode = int(sqlcode[0])
                 if abs(sqlcode) in [108, 119, 121, 122]:
-                    raise IntegrityError(message)
+                    raise IntegrityError(sqlcode, message)
                 if abs(sqlcode) in [1, 12]:
-                    raise OperationalError(message)
-                raise DatabaseError(message)
+                    raise OperationalError(sqlcode, message)
+                raise DatabaseError(sqlcode, message)
 
     return wrapper
+
+
+class InterSystemsCursorFetchStrategy(CursorFetchStrategy):
+
+    def fetchone(
+        self,
+        result,
+        dbapi_cursor,
+        hard_close: bool = False,
+    ) -> Any:
+        row = dbapi_cursor.fetchone()
+        return tuple(row) if row else None
 
 
 class InterSystemsExecutionContext(IRISExecutionContext):
@@ -123,9 +135,13 @@ class IRISDialect_intersystems(IRISDialect):
             if super_ is not None:
                 super_(conn)
 
-                server_version = dbapi.createIRIS(conn).classMethodValue("%SYSTEM.Version", "GetNumber")
+                server_version = dbapi.createIRIS(conn).classMethodValue(
+                    "%SYSTEM.Version", "GetNumber"
+                )
                 server_version = server_version.split(".")
-                self.server_version = tuple([int("".join(filter(str.isdigit, v))) for v in server_version])
+                self.server_version = tuple(
+                    [int("".join(filter(str.isdigit, v))) for v in server_version]
+                )
 
         return on_connect
 

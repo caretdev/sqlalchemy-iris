@@ -960,8 +960,8 @@ class Requirements(SuiteRequirements, AlembicRequirements):
         literal string, e.g. via the TypeEngine.literal_processor() method.
 
         """
-
-        return exclusions.open()
+        # works stable only on Community driver
+        return self.community_driver
 
     @property
     def datetime(self):
