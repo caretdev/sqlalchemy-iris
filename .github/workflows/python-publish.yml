@@ -27,6 +27,9 @@ jobs:
         engine:
           - old
           - new
+        driver:
+          - community
+          - intersystems
     runs-on: ubuntu-latest
     services:
       iris:
@@ -41,14 +44,14 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.12'
     - name: Install requirements
       run: |
         pip install tox
     - name: Run Tests
       run: |
         docker exec iris iris session iris -U%SYS '##class(Security.Users).UnExpireUserPasswords("*")'
-        tox -e py311${{ matrix.engine }} -- --dburi iris://_SYSTEM:SYS@localhost:1972/USER
+        tox -e py312-${{ matrix.engine }}-${{ matrix.driver }} -- --dburi iris://_SYSTEM:SYS@localhost:1972/USER
   deploy:
     needs: test
     if: github.event_name != 'pull_request'
