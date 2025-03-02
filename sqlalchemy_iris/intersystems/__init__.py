@@ -50,16 +50,11 @@ class InterSystemsCursorFetchStrategy(CursorFetchStrategy):
 class InterSystemsExecutionContext(IRISExecutionContext):
     cursor_fetch_strategy = InterSystemsCursorFetchStrategy()
 
-    def create_cursor(self):
-        cursor = self._dbapi_connection.cursor()
-        cursor.sqlcode = 0
-        return cursor
-
 
 class IRISDialect_intersystems(IRISDialect):
     driver = "intersystems"
 
-    execution_ctx_cls = InterSystemsExecutionContext
+    # execution_ctx_cls = InterSystemsExecutionContext
 
     supports_statement_cache = True
 
@@ -148,14 +143,6 @@ class IRISDialect_intersystems(IRISDialect):
     def _get_server_version_info(self, connection):
         return self.server_version
 
-    def _get_option(self, connection, option):
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT %SYSTEM_SQL.Util_GetOption(?)", (option,))
-            row = cursor.fetchone()
-            if row:
-                return row[0]
-        return None
-
     def set_isolation_level(self, connection, level_str):
         if level_str == "AUTOCOMMIT":
             connection.autocommit = True
@@ -166,6 +153,7 @@ class IRISDialect_intersystems(IRISDialect):
             with connection.cursor() as cursor:
                 cursor.execute("SET TRANSACTION ISOLATION LEVEL " + level_str)
 
+"""
     @remap_exception
     def do_execute(self, cursor, query, params, context=None):
         if query.endswith(";"):
@@ -182,5 +170,6 @@ class IRISDialect_intersystems(IRISDialect):
             params = [param[0] if len(param) else None for param in params]
         cursor.executemany(query, params)
 
+"""
 
 dialect = IRISDialect_intersystems
