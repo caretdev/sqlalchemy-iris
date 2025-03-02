@@ -971,11 +971,9 @@ There are no access to %Dictionary, may be required for some advanced features,
 
     def _get_option(self, connection, option):
         with connection.cursor() as cursor:
-            cursor.execute("SELECT %SYSTEM_SQL.Util_GetOption(?)", option)
+            cursor.execute("SELECT %SYSTEM_SQL.Util_GetOption(?)", (option, ))
             row = cursor.fetchone()
-            if row:
-                return row[0]
-        return None
+            return row[0] if row else None
 
     def _set_option(self, connection, option, value):
         with connection.cursor() as cursor:
