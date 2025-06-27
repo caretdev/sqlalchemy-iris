@@ -408,10 +408,21 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             return "EXISTS(%s)" % self.process(element.element, **kw)
 
     def limit_clause(self, select, **kw):
-        return ""
+        # handle the limit and offset clauses
+        if select._has_row_limiting_clause and not self._use_top(select):
+            limit_clause = self._get_limit_or_fetch(select)
+            offset_clause = select._offset_clause
 
-    def fetch_clause(self, select, **kw):
-        return ""
+            if limit_clause is not None:
+                if offset_clause is not None:
+                    return " LIMIT %s OFFSET %s" % (
+                        self.process(limit_clause, **kw),
+                        self.process(offset_clause, **kw),
+                    )
+                else:
+                    return " LIMIT %s" % self.process(limit_clause, **kw)
+            else:
+                return ""
 
     def visit_empty_set_expr(self, type_, **kw):
         return "SELECT 1 WHERE 1!=1"
@@ -541,14 +552,21 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         if not (select._has_row_limiting_clause and not self._use_top(select)):
             return select
 
-        """Look for ``LIMIT`` and OFFSET in a select statement, and if
-        so tries to wrap it in a subquery with ``row_number()`` criterion.
+        # check the current version of the iris server
+        server_version = self.dialect.server_version_info
 
-        """
+        if server_version is None or server_version < (2025, 1):
+            return self._handle_legacy_pagination(select, select_stmt)
+        else:
+            return self._handle_modern_pagination(select, select_stmt)
+
+    def _get_default_order_by(self, select_stmt, select):
+        """Get default ORDER BY clauses when none are specified."""
         _order_by_clauses = [
             sql_util.unwrap_label_reference(elem)
             for elem in select._order_by_clause.clauses
         ]
+
         if not _order_by_clauses:
             # If no ORDER BY clause, use the primary key
             if select_stmt.froms and isinstance(select_stmt.froms[0], schema.Table):
@@ -561,6 +579,12 @@ class IRISCompiler(sql.compiler.SQLCompiler):
                 else:
                     # If no primary key, use the id column
                     _order_by_clauses = [text("%id")]
+
+        return _order_by_clauses
+
+    def _handle_legacy_pagination(self, select, select_stmt):
+        """Handle pagination for IRIS versions before 2025.1 using ROW_NUMBER()."""
+        _order_by_clauses = self._get_default_order_by(select_stmt, select)
 
         limit_clause = self._get_limit_or_fetch(select)
         offset_clause = select._offset_clause
@@ -576,6 +600,7 @@ class IRISCompiler(sql.compiler.SQLCompiler):
 
         iris_rn = sql.column(label)
         limitselect = sql.select(*[c for c in select.c if c.key != label])
+
         if offset_clause is not None:
             if limit_clause is not None:
                 limitselect = limitselect.where(
@@ -584,8 +609,22 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             else:
                 limitselect = limitselect.where(iris_rn > offset_clause)
         else:
-            limitselect = limitselect.where(iris_rn <= (limit_clause))
+            limitselect = limitselect.where(iris_rn <= limit_clause)
+
         return limitselect
+
+    def _handle_modern_pagination(self, select, select_stmt):
+        """Handle pagination for IRIS 2025.1+ using native LIMIT/OFFSET."""
+        _order_by_clauses = self._get_default_order_by(select_stmt, select)
+
+        new_select = select._generate().order_by(*_order_by_clauses)
+
+        # Apply limit if present
+        if select._limit_clause is not None:
+            new_select = new_select.limit(select._limit_clause)
+
+        return new_select
+
 
     def order_by_clause(self, select, **kw):
         order_by = self.process(select._order_by_clause, **kw)

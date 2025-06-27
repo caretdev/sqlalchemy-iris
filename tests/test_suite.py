@@ -553,10 +553,12 @@ class IRISPaginationTest(fixtures.TablesTest):
     def test_pagination_single_table(self):
         """Test basic pagination on single table"""
         with config.db.connect() as conn:
+
             # Test first page
             result = conn.execute(
                 select(self.tables.data).limit(10).offset(0)
             ).fetchall()
+
             assert len(result) == 10
             assert result[0].value == "value_1"
             assert result[9].value == "value_10"
