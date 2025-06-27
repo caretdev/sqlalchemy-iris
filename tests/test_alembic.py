@@ -1,3 +1,6 @@
+from sqlalchemy_iris import LONGVARCHAR
+
+
 try:
     import alembic  # noqa
 except:  # noqa
@@ -128,3 +131,29 @@ else:
             assert col["name"] == "col"
             assert isinstance(col["type"], LONGVARBINARY)
             assert not col["nullable"]
+
+class TestIRISLONGVARCHAR(TestBase):
+
+    @fixture
+    def tables(self, connection):
+        self.meta = MetaData()
+        self.tbl = Table(
+            "longvarbinary_test",
+            self.meta,
+            Column("id", Integer, primary_key=True),
+            Column("data", LONGVARCHAR),
+        )
+        self.meta.create_all(connection)
+        yield
+        self.meta.drop_all(connection)
+
+    def test_longvarchar(self, connection, tables):
+        connection.execute(
+            self.tbl.insert(),
+            [
+                {"data": "test data"},
+                {"data": "more test data"},
+            ],
+        )
+        result = connection.execute(self.tbl.select()).fetchall()
+        assert result == [(1, "test data"), (2, "more test data")]
