@@ -774,6 +774,9 @@ class IRISTypeCompiler(compiler.GenericTypeCompiler):
     def visit_LONGVARBINARY(self, type_, **kw):
         return "LONGVARBINARY"
 
+    def visit_LONGVARCHAR(self, type_, **kw):
+        return "LONGVARCHAR"
+
     def visit_DOUBLE(self, type_, **kw):
         return "DOUBLE"
 
