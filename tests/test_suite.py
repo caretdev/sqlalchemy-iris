@@ -515,3 +515,162 @@ class FutureTableDDLTest(_FutureTableDDLTest):
 
     def test_drop_table_comment(self, connection):
         pass
+
+class IRISPaginationTest(fixtures.TablesTest):
+
+    @classmethod
+    def define_tables(cls, metadata):
+        Table(
+            "data",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("value", String(50)),
+        )
+        Table(
+            "users",
+            metadata,
+            Column("user_id", Integer, primary_key=True),
+            Column("username", String(30)),
+            Column("email", String(100)),
+        )
+
+    @classmethod
+    def insert_data(cls, connection):
+        connection.execute(
+            cls.tables.data.insert(),
+            [
+                {"id": i, "value": f"value_{i}"} for i in range(1, 21)
+            ],
+        )
+        connection.execute(
+            cls.tables.users.insert(),
+            [
+                {"user_id": i, "username": f"user_{i}", "email": f"user_{i}@example.com"}
+                for i in range(1, 31)
+            ],
+        )
+
+    def test_pagination_single_table(self):
+        """Test basic pagination on single table"""
+        with config.db.connect() as conn:
+            # Test first page
+            result = conn.execute(
+                select(self.tables.data).limit(10).offset(0)
+            ).fetchall()
+            assert len(result) == 10
+            assert result[0].value == "value_1"
+            assert result[9].value == "value_10"
+
+            # Test second page
+            result = conn.execute(
+                select(self.tables.data).limit(10).offset(10)
+            ).fetchall()
+            assert len(result) == 10
+            assert result[0].value == "value_11"
+            assert result[9].value == "value_20"
+
+    def test_pagination_with_order(self):
+        """Test pagination with explicit ordering"""
+        with config.db.connect() as conn:
+            # Test ordered pagination on users table by user_id (numeric order)
+            result = conn.execute(
+                select(self.tables.users)
+                .order_by(self.tables.users.c.user_id)
+                .limit(5)
+                .offset(0)
+            ).fetchall()
+            assert len(result) == 5
+            assert result[0].username == "user_1"
+            assert result[4].username == "user_5"
+
+            # Test second page with ordering
+            result = conn.execute(
+                select(self.tables.users)
+                .order_by(self.tables.users.c.user_id)
+                .limit(5)
+                .offset(5)
+            ).fetchall()
+            assert len(result) == 5
+            assert result[0].username == "user_6"
+            assert result[4].username == "user_10"
+
+    def test_pagination_two_tables_join(self):
+        """Test pagination with JOIN between two tables"""
+        with config.db.connect() as conn:
+            # Create a join query with pagination
+            # Join where data.id matches user.user_id for first 20 records
+            query = (
+                select(
+                    self.tables.data.c.value,
+                    self.tables.users.c.username,
+                    self.tables.users.c.email
+                )
+                .select_from(
+                    self.tables.data.join(
+                        self.tables.users,
+                        self.tables.data.c.id == self.tables.users.c.user_id
+                    )
+                )
+                .order_by(self.tables.data.c.id)
+                .limit(5)
+                .offset(5)
+            )
+
+            result = conn.execute(query).fetchall()
+            assert len(result) == 5
+            assert result[0].value == "value_6"
+            assert result[0].username == "user_6"
+            assert result[4].value == "value_10"
+            assert result[4].username == "user_10"
+
+    def test_pagination_large_offset(self):
+        """Test pagination with larger offset values"""
+        with config.db.connect() as conn:
+            # Test pagination near the end of users table
+            result = conn.execute(
+                select(self.tables.users)
+                .order_by(self.tables.users.c.user_id)
+                .limit(5)
+                .offset(25)
+            ).fetchall()
+            assert len(result) == 5
+            assert result[0].user_id == 26
+            assert result[4].user_id == 30
+
+            # Test offset beyond available data
+            result = conn.execute(
+                select(self.tables.users)
+                .order_by(self.tables.users.c.user_id)
+                .limit(10)
+                .offset(35)
+            ).fetchall()
+            assert len(result) == 0
+
+    def test_pagination_count_total(self):
+        """Test getting total count for pagination metadata"""
+        with config.db.connect() as conn:
+            # Get total count of data table
+            total_data = conn.execute(
+                select(func.count()).select_from(self.tables.data)
+            ).scalar()
+            assert total_data == 20
+
+            # Get total count of users table
+            total_users = conn.execute(
+                select(func.count()).select_from(self.tables.users)
+            ).scalar()
+            assert total_users == 30
+
+            # Verify pagination math
+            page_size = 7
+            total_pages_data = (total_data + page_size - 1) // page_size
+            assert total_pages_data == 3  # 20 records / 7 per page = 3 pages
+
+            # Test last page
+            result = conn.execute(
+                select(self.tables.data)
+                .order_by(self.tables.data.c.id)
+                .limit(page_size)
+                .offset((total_pages_data - 1) * page_size)
+            ).fetchall()
+            assert len(result) == 6  # Last page has 6 records (20 - 14)

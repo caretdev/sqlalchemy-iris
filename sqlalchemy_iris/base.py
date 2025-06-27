@@ -550,7 +550,17 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             for elem in select._order_by_clause.clauses
         ]
         if not _order_by_clauses:
-            _order_by_clauses = [text("%id")]
+            # If no ORDER BY clause, use the primary key
+            if select_stmt.froms and isinstance(select_stmt.froms[0], schema.Table):
+                table = select.froms[0]
+                if table.primary_key and table.primary_key.columns:
+                    _order_by_clauses = [
+                        sql_util.unwrap_label_reference(c)
+                        for c in table.primary_key.columns
+                    ]
+                else:
+                    # If no primary key, use the id column
+                    _order_by_clauses = [text("%id")]
 
         limit_clause = self._get_limit_or_fetch(select)
         offset_clause = select._offset_clause
