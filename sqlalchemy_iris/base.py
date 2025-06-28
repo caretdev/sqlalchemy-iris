@@ -409,6 +409,8 @@ class IRISCompiler(sql.compiler.SQLCompiler):
 
     def limit_clause(self, select, **kw):
         # handle the limit and offset clauses
+        if not self.dialect.supports_modern_pagination:
+            return ""
         if select._has_row_limiting_clause and not self._use_top(select):
             limit_clause = self._get_limit_or_fetch(select)
             offset_clause = select._offset_clause
@@ -423,6 +425,11 @@ class IRISCompiler(sql.compiler.SQLCompiler):
                     return " LIMIT %s" % self.process(limit_clause, **kw)
             else:
                 return ""
+
+    def fetch_clause(self, select, **kw):
+        if not self.dialect.supports_modern_pagination:
+            return ""
+        return super().fetch_clause(select, **kw)
 
     def visit_empty_set_expr(self, type_, **kw):
         return "SELECT 1 WHERE 1!=1"
@@ -493,7 +500,7 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             else:
                 text += "DISTINCT "
 
-        if select._has_row_limiting_clause and self._use_top(select):
+        if not self.dialect.supports_modern_pagination and select._has_row_limiting_clause and self._use_top(select):
             text += "TOP %s " % self.process(self._get_limit_or_fetch(select), **kw)
 
         return text
@@ -552,13 +559,10 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         if not (select._has_row_limiting_clause and not self._use_top(select)):
             return select
 
-        # check the current version of the iris server
-        server_version = self.dialect.server_version_info
-
-        if server_version is None or server_version < (2025, 1):
-            return self._handle_legacy_pagination(select, select_stmt)
-        else:
+        if self.dialect.supports_modern_pagination:
             return self._handle_modern_pagination(select, select_stmt)
+        else:
+            return self._handle_legacy_pagination(select, select_stmt)
 
     def _get_default_order_by(self, select_stmt, select):
         """Get default ORDER BY clauses when none are specified."""
@@ -624,7 +628,6 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             new_select = new_select.limit(select._limit_clause)
 
         return new_select
-
 
     def order_by_clause(self, select, **kw):
         order_by = self.process(select._order_by_clause, **kw)
@@ -884,6 +887,14 @@ class IRISExecutionContext(default.DefaultExecutionContext):
         cursor = self._dbapi_connection.cursor()
         return cursor
 
+    @util.non_memoized_property
+    def rowcount(self) -> int:
+        print("_rowcount", self._rowcount, self.cursor._closed, self.cursor.rowcount)
+        if self._rowcount is not None:
+            return self._rowcount
+        else:
+            return self.cursor.rowcount
+
 
 colspecs = {
     sqltypes.Boolean: IRISBoolean,
@@ -959,6 +970,8 @@ class IRISDialect(default.DefaultDialect):
     update_executemany_returning = False
     delete_executemany_returning = False
 
+    supports_modern_pagination = False
+
     construct_arguments = [
         (schema.Index, {"include": None}),
     ]
@@ -985,6 +998,10 @@ class IRISDialect(default.DefaultDialect):
 
     def _get_default_schema_name(self, connection):
         return IRISDialect.default_schema_name
+
+    def initialize(self, connection):
+        super().initialize(connection)
+        self.supports_modern_pagination = self.server_version_info >= (2025, 1)
 
     def on_connect(self):
         super_ = super().on_connect()
