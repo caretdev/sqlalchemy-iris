@@ -432,8 +432,8 @@ class Requirements(SuiteRequirements, AlembicRequirements):
         SQL expression, such as one that uses the addition operator.
         parameter
         """
-
-        return exclusions.open()
+        # IRIS does not support expressions in LIMIT/OFFSET
+        return exclusions.closed()
 
     @property
     def parens_in_union_contained_select_w_limit_offset(self):
@@ -1454,7 +1454,7 @@ class Requirements(SuiteRequirements, AlembicRequirements):
         SELECT * FROM some_table
         OFFSET 1 + 1 ROWS FETCH FIRST 1 + 1 ROWS ONLY
         """
-        return exclusions.open()
+        return exclusions.closed()
 
     @property
     def autoincrement_without_sequence(self):

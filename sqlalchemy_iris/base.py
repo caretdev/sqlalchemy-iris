@@ -411,20 +411,19 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         # handle the limit and offset clauses
         if not self.dialect.supports_modern_pagination:
             return ""
+        sql = ""
         if select._has_row_limiting_clause and not self._use_top(select):
             limit_clause = self._get_limit_or_fetch(select)
             offset_clause = select._offset_clause
 
             if limit_clause is not None:
-                if offset_clause is not None:
-                    return " LIMIT %s OFFSET %s" % (
-                        self.process(limit_clause, **kw),
-                        self.process(offset_clause, **kw),
-                    )
-                else:
-                    return " LIMIT %s" % self.process(limit_clause, **kw)
-            else:
-                return ""
+                sql += " LIMIT %s" % self.process(limit_clause, **kw)
+            elif offset_clause is not None and self.dialect.server_version_info < (2025, 2):
+                # IRIS 2025.1 has a bug with offset without limit
+                sql += " LIMIT 100"
+            if offset_clause is not None:
+                sql += " OFFSET %s" % self.process(offset_clause, **kw)
+        return sql
 
     def fetch_clause(self, select, **kw):
         if not self.dialect.supports_modern_pagination:
@@ -506,6 +505,8 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         return text
 
     def _use_top(self, select):
+        if self.dialect.supports_modern_pagination:
+            return False
         return (select._offset_clause is None) and (
             select._simple_int_clause(select._limit_clause)
             or select._simple_int_clause(select._fetch_clause)
@@ -631,11 +632,11 @@ class IRISCompiler(sql.compiler.SQLCompiler):
 
     def order_by_clause(self, select, **kw):
         order_by = self.process(select._order_by_clause, **kw)
+        limit_clause = self._get_limit_or_fetch(select)
 
-        if order_by and (not self.is_subquery() or select._limit):
+        if order_by and not self.is_subquery() and limit_clause is None and select._offset_clause is None:
             return " ORDER BY " + order_by
-        else:
-            return ""
+        return ""
 
     def visit_concat_op_binary(self, binary, operator, **kw):
         return "STRING(%s, %s)" % (
