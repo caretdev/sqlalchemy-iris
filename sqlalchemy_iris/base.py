@@ -574,8 +574,9 @@ class IRISCompiler(sql.compiler.SQLCompiler):
 
         if not _order_by_clauses:
             # If no ORDER BY clause, use the primary key
-            if select_stmt.froms and isinstance(select_stmt.froms[0], schema.Table):
-                table = select.froms[0]
+            froms = select_stmt.get_final_froms()
+            if froms and isinstance(froms[0], schema.Table):
+                table = froms[0]
                 if table.primary_key and table.primary_key.columns:
                     _order_by_clauses = [
                         sql_util.unwrap_label_reference(c)
