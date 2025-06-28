@@ -5,4 +5,3 @@ pytest
 # twine
 alembic
 testcontainers-iris
-pytest-github-actions-annotate-failures

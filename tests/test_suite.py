@@ -11,7 +11,7 @@ from sqlalchemy.testing.assertions import eq_
 from sqlalchemy.testing import config
 from sqlalchemy.orm import Session
 from sqlalchemy import testing
-from sqlalchemy import Table, Column, select, func
+from sqlalchemy import Table, Column, select, func, text
 from sqlalchemy.types import Integer
 from sqlalchemy.types import String
 from sqlalchemy.types import VARBINARY
@@ -516,6 +516,7 @@ class FutureTableDDLTest(_FutureTableDDLTest):
     def test_drop_table_comment(self, connection):
         pass
 
+
 class IRISPaginationTest(fixtures.TablesTest):
 
     @classmethod
@@ -538,14 +539,16 @@ class IRISPaginationTest(fixtures.TablesTest):
     def insert_data(cls, connection):
         connection.execute(
             cls.tables.data.insert(),
-            [
-                {"id": i, "value": f"value_{i}"} for i in range(1, 21)
-            ],
+            [{"id": i, "value": f"value_{i}"} for i in range(1, 21)],
         )
         connection.execute(
             cls.tables.users.insert(),
             [
-                {"user_id": i, "username": f"user_{i}", "email": f"user_{i}@example.com"}
+                {
+                    "user_id": i,
+                    "username": f"user_{i}",
+                    "email": f"user_{i}@example.com",
+                }
                 for i in range(1, 31)
             ],
         )
@@ -605,12 +608,12 @@ class IRISPaginationTest(fixtures.TablesTest):
                 select(
                     self.tables.data.c.value,
                     self.tables.users.c.username,
-                    self.tables.users.c.email
+                    self.tables.users.c.email,
                 )
                 .select_from(
                     self.tables.data.join(
                         self.tables.users,
-                        self.tables.data.c.id == self.tables.users.c.user_id
+                        self.tables.data.c.id == self.tables.users.c.user_id,
                     )
                 )
                 .order_by(self.tables.data.c.id)
@@ -676,3 +679,48 @@ class IRISPaginationTest(fixtures.TablesTest):
                 .offset((total_pages_data - 1) * page_size)
             ).fetchall()
             assert len(result) == 6  # Last page has 6 records (20 - 14)
+
+
+class Issue20Test(fixtures.TablesTest):
+
+    def test_with(self):
+        sql = """
+            WITH cte AS (
+                SELECT 123 as n, :param as message
+            ),
+            cte1 AS (
+                SELECT 345 as n, :param1 as message
+            ),
+            cte2 AS (
+                SELECT *, :param2 as message2
+                FROM cte
+            )
+            SELECT *, :global as test FROM %s;
+        """
+
+        params = {
+            "param": "hello",
+            "param2": "hello2",
+            "param1": "hello1",
+            "global": "global_value",
+        }
+        with config.db.connect() as conn:
+            result = conn.execute(
+                text(sql % "cte"),
+                params,
+            ).fetchall()
+            assert result == [(123, "hello", "global_value")]
+
+        with config.db.connect() as conn:
+            result = conn.execute(
+                text(sql % "cte1"),
+                params,
+            ).fetchall()
+            assert result == [(345, "hello1", "global_value")]
+
+        with config.db.connect() as conn:
+            result = conn.execute(
+                text(sql % "cte2"),
+                params,
+            ).fetchall()
+            assert result == [(123, "hello", "hello2", "global_value")]

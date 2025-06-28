@@ -95,10 +95,6 @@ engine = create_engine(DATABASE_URL, echo=False)
 metadata = MetaData()
 
 
-class Base(DeclarativeBase):
-    pass
-
-
 def main():
     demo_table = Table(
         "demo_table",
