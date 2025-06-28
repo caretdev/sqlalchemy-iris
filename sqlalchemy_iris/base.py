@@ -887,14 +887,6 @@ class IRISExecutionContext(default.DefaultExecutionContext):
         cursor = self._dbapi_connection.cursor()
         return cursor
 
-    @util.non_memoized_property
-    def rowcount(self) -> int:
-        print("_rowcount", self._rowcount, self.cursor._closed, self.cursor.rowcount)
-        if self._rowcount is not None:
-            return self._rowcount
-        else:
-            return self.cursor.rowcount
-
 
 colspecs = {
     sqltypes.Boolean: IRISBoolean,
