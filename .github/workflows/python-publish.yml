@@ -22,6 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         image:
+          - 2024.3
           - latest-cd
           - latest-preview
         engine:
@@ -49,7 +50,7 @@ jobs:
       run: |
         pip install tox
     - name: Run Tests
-      continue-on-error: true
+      continue-on-error: ${{ matrix.driver == 'intersystems' }}
       run: |
         docker exec iris iris session iris -U%SYS '##class(Security.Users).UnExpireUserPasswords("*")'
         tox -e py312-${{ matrix.engine }}-${{ matrix.driver }} -- --dburi iris+${{ matrix.driver }}://_SYSTEM:SYS@localhost:1972/USER --junit-xml=test-results.xml
