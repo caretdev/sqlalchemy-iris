@@ -7,12 +7,16 @@ from sqlalchemy.testing.suite import FutureTableDDLTest as _FutureTableDDLTest
 from sqlalchemy.testing.suite import CTETest as _CTETest
 from sqlalchemy.testing.suite import DifficultParametersTest as _DifficultParametersTest
 from sqlalchemy.testing.suite import ComponentReflectionTest as _ComponentReflectionTest
+from sqlalchemy.testing.suite import (
+    ComponentReflectionTestExtra as _ComponentReflectionTestExtra,
+)
 from sqlalchemy.testing import fixtures
 from sqlalchemy.testing.assertions import eq_
 from sqlalchemy.testing import config
 from sqlalchemy.orm import Session
 from sqlalchemy import testing
 from sqlalchemy import Table, Column, select, func, text
+from sqlalchemy import types as sql_types
 from sqlalchemy.types import Integer
 from sqlalchemy.types import String
 from sqlalchemy.types import VARBINARY
@@ -32,27 +36,55 @@ from sqlalchemy import __version__ as sqlalchemy_version
 
 if sqlalchemy_version.startswith("2."):
     from sqlalchemy.testing.suite import (
-        BizarroCharacterFKResolutionTest as _BizarroCharacterFKResolutionTest,
+        BizarroCharacterTest as _BizarroCharacterTest,
     )
 
-    class BizarroCharacterFKResolutionTest(_BizarroCharacterFKResolutionTest):
-        @testing.combinations(
-            ("id",), ("(3)",), ("col%p",), ("[brack]",), argnames="columnname"
-        )
+    class BizarroCharacterTest(_BizarroCharacterTest):
+        def column_names():
+            return testing.combinations(
+                ("plainname",),
+                ("(3)",),
+                ("col%p",),
+                ("[brack]",),
+                argnames="columnname",
+            )
+
+        def table_names():
+            return testing.combinations(
+                ("plain",),
+                # ("(2)",),
+                ("per % cent",),
+                ("[brackets]",),
+                argnames="tablename",
+            )
+
         @testing.variation("use_composite", [True, False])
-        @testing.combinations(
-            ("plain",),
-            # ("(2)",), not in IRIS
-            ("per % cent",),
-            ("[brackets]",),
-            argnames="tablename",
-        )
+        @column_names()
+        @table_names()
+        @testing.requires.foreign_key_constraint_reflection
         def test_fk_ref(
             self, connection, metadata, use_composite, tablename, columnname
         ):
             super().test_fk_ref(
                 connection, metadata, use_composite, tablename, columnname
             )
+
+        @column_names()
+        @table_names()
+        @testing.requires.comment_reflection
+        def test_reflect_comments(self, tablename, columnname, connection, metadata):
+            super().test_reflect_comments(tablename, columnname, connection, metadata)
+
+    class ComponentReflectionTestExtra(_ComponentReflectionTestExtra):
+
+        @testing.requires.table_reflection
+        @testing.combinations(
+            sql_types.String,
+            sql_types.VARCHAR,
+            argnames="type_",
+        )
+        def test_string_length_reflection(self, connection, metadata, type_):
+            super().test_string_length_reflection(connection, metadata, type_, [])
 
 
 class CompoundSelectTest(_CompoundSelectTest):

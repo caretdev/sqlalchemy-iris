@@ -1,5 +1,7 @@
 import re
 from decimal import Decimal
+from typing import Optional
+from typing import Any
 import intersystems_iris.dbapi._DBAPI as dbapi
 from . import information_schema as ischema
 from sqlalchemy import exc
@@ -110,6 +112,7 @@ ischema_names = {
     "TINYINT": TINYINT,
     "VARBINARY": VARBINARY,
     "VARCHAR": VARCHAR,
+    "CHAR": CHAR,
 }
 
 RESERVED_WORDS = set(
@@ -418,7 +421,10 @@ class IRISCompiler(sql.compiler.SQLCompiler):
 
             if limit_clause is not None:
                 sql += " LIMIT %s" % self.process(limit_clause, **kw)
-            elif offset_clause is not None and self.dialect.server_version_info < (2025, 2):
+            elif offset_clause is not None and self.dialect.server_version_info < (
+                2025,
+                2,
+            ):
                 # IRIS 2025.1 has a bug with offset without limit
                 sql += " LIMIT 100"
             if offset_clause is not None:
@@ -499,7 +505,11 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             else:
                 text += "DISTINCT "
 
-        if not self.dialect.supports_modern_pagination and select._has_row_limiting_clause and self._use_top(select):
+        if (
+            not self.dialect.supports_modern_pagination
+            and select._has_row_limiting_clause
+            and self._use_top(select)
+        ):
             text += "TOP %s " % self.process(self._get_limit_or_fetch(select), **kw)
 
         return text
@@ -635,7 +645,12 @@ class IRISCompiler(sql.compiler.SQLCompiler):
         order_by = self.process(select._order_by_clause, **kw)
         limit_clause = self._get_limit_or_fetch(select)
 
-        if order_by and not self.is_subquery() and limit_clause is None and select._offset_clause is None:
+        if (
+            order_by
+            and not self.is_subquery()
+            and limit_clause is None
+            and select._offset_clause is None
+        ):
             return " ORDER BY " + order_by
         return ""
 
@@ -645,11 +660,9 @@ class IRISCompiler(sql.compiler.SQLCompiler):
             self.process(binary.right, **kw),
         )
 
-    def visit_concat_func(
-        self, func, **kw
-    ):
+    def visit_concat_func(self, func, **kw):
         args = [self.process(clause, **kw) for clause in func.clauses.clauses]
-        return ' || '.join(args)
+        return " || ".join(args)
 
     def visit_mod_binary(self, binary, operator, **kw):
         return (
@@ -712,7 +725,7 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
         comment = table.comment
         if comment:
             # hack to keep \r, kind of
-            comment = comment.replace('\r', '\n\t')
+            comment = comment.replace("\r", "\n\t")
             literal = self.sql_compiler.render_literal_value(comment, sqltypes.String())
             description = "%DESCRIPTION " + literal
 
@@ -769,7 +782,7 @@ class IRISDDLCompiler(sql.compiler.DDLCompiler):
 
         comment = column.comment
         if comment is not None:
-            comment = comment.replace('\r', '\n\t')
+            comment = comment.replace("\r", "\n\t")
             literal = self.sql_compiler.render_literal_value(comment, sqltypes.String())
             colspec.append("%DESCRIPTION " + literal)
 
@@ -816,11 +829,37 @@ class IRISTypeCompiler(compiler.GenericTypeCompiler):
     def visit_BIT(self, type_, **kw):
         return "BIT"
 
-    def visit_VARCHAR(self, type_, **kw):
-        # If length is not specified, use 50 as default in IRIS
-        if type_.length is None:
-            type_ = VARCHAR(50)
-        return "VARCHAR(%d)" % type_.length
+    # def visit_VARCHAR(self, type_, **kw):
+    #     # If length is not specified, use 50 as default in IRIS
+    #     if type_.length is None:
+    #         type_ = VARCHAR(50)
+    #     return "VARCHAR(%d)" % type_.length
+
+    def _render_string_type(
+        self, name: str, length: Optional[int], collation: Optional[str]
+    ) -> str:
+        text = name
+        if length:
+            text += f"({length})"
+        # if collation:
+        #     text += f' COLLATE "{collation}"'
+        return text
+
+    def visit_CHAR(self, type_: sqltypes.CHAR, **kw: Any) -> str:
+        return self._render_string_type("CHAR", type_.length, type_.collation)
+
+    def visit_NCHAR(self, type_: sqltypes.NCHAR, **kw: Any) -> str:
+        return self._render_string_type("NCHAR", type_.length, type_.collation)
+
+    def visit_VARCHAR(self, type_: sqltypes.String, **kw: Any) -> str:
+        return self._render_string_type(
+            "VARCHAR", type_.length, type_.collation
+        )
+
+    def visit_NVARCHAR(self, type_: sqltypes.NVARCHAR, **kw: Any) -> str:
+        return self._render_string_type(
+            "NVARCHAR", type_.length, type_.collation
+        )
 
     def visit_TEXT(self, type_, **kw):
         return "VARCHAR(65535)"
@@ -1015,7 +1054,9 @@ class IRISDialect(default.DefaultDialect):
                 self.supports_vectors = False
             self._dictionary_access = False
             with conn.cursor() as cursor:
-                res = cursor.execute("%CHECKPRIV SELECT ON %Dictionary.PropertyDefinition")
+                res = cursor.execute(
+                    "%CHECKPRIV SELECT ON %Dictionary.PropertyDefinition"
+                )
                 self._dictionary_access = res == 0
 
             # if not self.supports_vectors:
@@ -1034,7 +1075,7 @@ There are no access to %Dictionary, may be required for some advanced features,
 
     def _get_option(self, connection, option):
         with connection.cursor() as cursor:
-            cursor.execute("SELECT %SYSTEM_SQL.Util_GetOption(?)", (option, ))
+            cursor.execute("SELECT %SYSTEM_SQL.Util_GetOption(?)", (option,))
             row = cursor.fetchone()
             return row[0] if row else None
 
@@ -1182,7 +1223,9 @@ There are no access to %Dictionary, may be required for some advanced features,
 
     @reflection.cache
     def get_table_options(self, connection, table_name, schema=None, **kw):
-        if not self.has_table(connection=connection, table_name=table_name, schema=schema):
+        if not self.has_table(
+            connection=connection, table_name=table_name, schema=schema
+        ):
             raise exc.NoSuchTableError(
                 f"{schema}.{table_name}" if schema else table_name
             ) from None
@@ -1190,7 +1233,9 @@ There are no access to %Dictionary, may be required for some advanced features,
 
     @reflection.cache
     def get_table_comment(self, connection, table_name, schema=None, **kw):
-        if not self.has_table(connection=connection, table_name=table_name, schema=schema):
+        if not self.has_table(
+            connection=connection, table_name=table_name, schema=schema
+        ):
             raise exc.NoSuchTableError(
                 f"{schema}.{table_name}" if schema else table_name
             ) from None
@@ -1207,9 +1252,9 @@ There are no access to %Dictionary, may be required for some advanced features,
         comment = connection.execute(s).scalar()
         if comment:
             # make it as \r
-            comment = comment.replace(' \t\t\t\t', '\r')
+            comment = comment.replace(" \t\t\t\t", "\r")
             # restore \n
-            comment = comment.replace(' \t\t\t', '\n')
+            comment = comment.replace(" \t\t\t", "\n")
         return {"text": comment}
 
     @reflection.cache
@@ -1761,15 +1806,16 @@ There are no access to %Dictionary, may be required for some advanced features,
             comment = row[columns.c.description]
             if comment:
                 # make it as \r
-                comment = comment.replace(' \t\t\t\t', '\r')
+                comment = comment.replace(" \t\t\t\t", "\r")
                 # restore \n
-                comment = comment.replace(' \t\t\t', '\n')
+                comment = comment.replace(" \t\t\t", "\n")
 
             coltype = self.ischema_names.get(type_, None)
 
             kwargs = {}
             if coltype in (
                 VARCHAR,
+                CHAR,
                 BINARY,
                 TEXT,
                 VARBINARY,
