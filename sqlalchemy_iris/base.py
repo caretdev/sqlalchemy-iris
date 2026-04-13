@@ -2,7 +2,10 @@ import re
 from decimal import Decimal
 from typing import Optional
 from typing import Any
-import intersystems_iris.dbapi._DBAPI as dbapi
+try:
+    import intersystems_iris.dbapi._DBAPI as dbapi
+except ImportError:
+    dbapi = None
 from . import information_schema as ischema
 from sqlalchemy import exc
 from sqlalchemy.orm import aliased

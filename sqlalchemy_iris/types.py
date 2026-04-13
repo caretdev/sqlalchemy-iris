@@ -4,8 +4,12 @@ from sqlalchemy import func, text
 from sqlalchemy.sql import sqltypes
 from sqlalchemy.types import UserDefinedType
 from uuid import UUID as _python_UUID
-from intersystems_iris import IRISList
 from sqlalchemy import __version__ as sqlalchemy_version
+
+try:
+    from intersystems_iris import IRISList
+except ImportError:
+    pass
 
 HOROLOG_ORDINAL = datetime.date(1840, 12, 31).toordinal()
 
