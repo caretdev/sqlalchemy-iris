@@ -882,6 +882,9 @@ class IRISTypeCompiler(compiler.GenericTypeCompiler):
     def visit_UUID(self, type_, **kw):
         return "UNIQUEIDENTIFIER"
 
+    def visit_JSON(self, type_, **kw):
+        return "%AbstractSet"
+
 
 class IRISIdentifierPreparer(sql.compiler.IdentifierPreparer):
     """Install IRIS specific reserved words."""
@@ -1012,8 +1015,13 @@ class IRISDialect(default.DefaultDialect):
         (schema.Index, {"include": None}),
     ]
 
-    def __init__(self, **kwargs):
+    def __init__(self,
+            json_serializer=None,
+            json_deserializer=None,
+            **kwargs):
         default.DefaultDialect.__init__(self, **kwargs)
+        self._json_deserializer = json_deserializer
+        self._json_serializer = json_serializer
 
     def _get_server_version_info(self, connection):
         server_version = connection.connection._connection_info._server_version
