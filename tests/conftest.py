@@ -7,6 +7,7 @@ from sqlalchemy.testing.plugin.plugin_base import pre
 from testcontainers.iris import IRISContainer
 
 registry.register("iris.iris", "sqlalchemy_iris.iris", "IRISDialect_iris")
+registry.register("iris.community", "sqlalchemy_iris.iris", "IRISDialect_iris")
 registry.register("iris.emb", "sqlalchemy_iris.embedded", "IRISDialect_emb")
 registry.register(
     "iris.intersystems", "sqlalchemy_iris.intersystems", "IRISDialect_intersystems"

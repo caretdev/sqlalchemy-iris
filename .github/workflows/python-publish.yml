@@ -32,7 +32,7 @@ jobs:
           - old
           - new
         driver:
-          - iris
+          - community
           - intersystems
     runs-on: ubuntu-latest
     services:
@@ -44,9 +44,9 @@ jobs:
           --name iris
           --health-cmd "/usr/irissys/dev/Cloud/ICM/waitReady.sh -m 1"
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: '3.12'
     - name: Install requirements
@@ -75,11 +75,11 @@ jobs:
         id-token: write
         contents: write
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       if: github.event_name == 'push'
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: '3.x'
     - name: Install dependencies
@@ -106,12 +106,12 @@ jobs:
     - name: Create Beta Release
       id: create_release
       if: github.event_name == 'push'
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         tag_name: v${{ steps.set-version.outputs.version }}
         prerelease: ${{ github.event_name != 'release' }}
         files: dist/${{ steps.set-version.outputs.name }}.whl
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       if: github.event_name == 'release'
       with:
         ref: main
